@@ -3,10 +3,12 @@
 import { SchedulerGrid } from "@/components/dashboard/scheduler-grid";
 import { InviteUserModal } from "@/components/dashboard/invite-user-modal";
 import { useDashboard } from "@/lib/context/dashboard-context";
+import { useUser } from "@/hooks/useUser";
 
 export default function DaypartingPage() {
   const { selectedCampaign } = useDashboard();
-
+  const { data: user, isLoading, isPending, error } = useUser();
+  console.log("User data:", { user, isLoading, isPending, error });
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Title & Actions */}
