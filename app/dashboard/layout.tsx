@@ -1,0 +1,189 @@
+"use client";
+
+import { ReactNode } from "react";
+import { 
+  BarChart3, 
+  Calendar, 
+  LayoutDashboard, 
+  Settings, 
+  Users, 
+  Zap,
+  MessageSquare,
+  HelpCircle,
+  Bell,
+  Search
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { DashboardProvider, useDashboard, Campaign } from "@/lib/context/dashboard-context";
+
+const navigation = [
+  // { name: 'Dashboard', icon: LayoutDashboard, href: '#', current: false },
+  // { name: 'Campaigns', icon: BarChart3, href: '#', current: false },
+  { name: 'Dayparting', icon: Calendar, href: '/dashboard/dayparting', current: true },
+  // { name: 'Rules', icon: Zap, href: '#', current: false },
+  // { name: 'Audience', icon: Users, href: '#', current: false },
+];
+
+const initialCampaigns: Campaign[] = [
+  { id: '88294410', name: 'US-PROMO-Q4-NIKE-REACT', status: 'ACTIVE', budget: '$2,450.00/d' },
+  { id: '88294411', name: 'EU-SNEAKER-FLASHSALE', status: 'ACTIVE', budget: '$1,800.00/d' },
+  { id: '1102934', name: 'SEA-REMARKETING-2024', status: 'PAUSED', budget: '$450.00/d' },
+  { id: '9920331', name: 'LATAM-APPAREL-SPRING', status: 'ACTIVE', budget: '$5,000.00/d' },
+];
+
+function DashboardLayoutContent({ children }: { children: ReactNode }) {
+  const { selectedCampaign, setSelectedCampaign, handleSave } = useDashboard();
+
+  return (
+    <div className="flex h-screen bg-[#F8FAFC] dark:bg-zinc-950">
+      {/* Primary Sidebar (Navigation) */}
+      <div className="flex w-16 flex-col items-center border-r bg-white dark:bg-zinc-900 py-4 dark:border-zinc-800">
+        <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600">
+          <Zap className="h-6 w-6 text-white" />
+        </div>
+        <nav className="flex flex-1 flex-col items-center space-y-4">
+          {navigation.map((item) => (
+            <a
+              key={item.name}
+              href={item.href}
+              className={cn(
+                "group relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
+                item.current 
+                  ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400" 
+                  : "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 dark:hover:bg-zinc-800"
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              <span className="absolute left-14 hidden rounded-md bg-zinc-900 px-2 py-1 text-xs text-white group-hover:block">
+                {item.name}
+              </span>
+            </a>
+          ))}
+        </nav>
+        <div className="mt-auto flex flex-col items-center space-y-4">
+          <button className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
+            <Settings className="h-5 w-5" />
+          </button>
+          <div className="h-8 w-8 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+        </div>
+      </div>
+
+      {/* Secondary Sidebar (Campaigns) */}
+      <div className="flex w-72 flex-col border-r bg-white dark:bg-zinc-900 dark:border-zinc-800">
+        <div className="flex items-center justify-between border-b px-4 py-4 dark:border-zinc-800">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Campaigns</h2>
+          
+        </div>
+        <ScrollArea className="flex-1">
+          <div className="space-y-1 p-2">
+            {initialCampaigns.map((campaign) => (
+              <div
+                key={campaign.id}
+                onClick={() => setSelectedCampaign(campaign)}
+                className={cn(
+                  "group relative flex flex-col space-y-2 rounded-xl p-4 transition-all cursor-pointer border-2",
+                  selectedCampaign?.id === campaign.id
+                    ? "bg-indigo-50/50 border-indigo-100 dark:bg-indigo-900/10 dark:border-indigo-900/30" 
+                    : "hover:bg-zinc-50 border-transparent dark:hover:bg-zinc-800"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div className={cn(
+                    "text-[10px] font-bold tracking-wider",
+                    campaign.status === 'ACTIVE' ? "text-emerald-600" : "text-zinc-400"
+                  )}>
+                    {campaign.status}
+                  </div>
+                  <Switch 
+                    checked={campaign.status === 'ACTIVE'} 
+                    className="scale-75 data-[state=checked]:bg-emerald-500"
+                  />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-tight">
+                    {campaign.name}
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
+                    <span>ID: {campaign.id}</span>
+                    <span className="text-zinc-900 dark:text-zinc-100 font-bold">{campaign.budget}</span>
+                  </div>
+                </div>
+                {selectedCampaign?.id === campaign.id && (
+                  <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">
+                    Selected
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col">
+        {/* Header */}
+        <header className="flex h-16 items-center justify-between border-b bg-white px-8 dark:bg-zinc-900 dark:border-zinc-800">
+          {/* <div className="relative w-96">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <Input 
+              placeholder="Search campaign rules..." 
+              className="pl-10 h-10 bg-zinc-50 border-zinc-200 dark:bg-zinc-800 dark:border-zinc-700"
+            />
+          </div> */}
+          <div className="flex items-center space-x-4">
+            <button className="rounded-full p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 dark:hover:bg-zinc-800">
+              <Bell className="h-5 w-5" />
+            </button>
+            <button className="rounded-full p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 dark:hover:bg-zinc-800">
+              <HelpCircle className="h-5 w-5" />
+            </button>
+            <button className="rounded-full p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 dark:hover:bg-zinc-800">
+              <Settings className="h-5 w-5" />
+            </button>
+          </div>
+        </header>
+
+        {/* View Content */}
+        <main className="flex-1 overflow-auto bg-[#F8FAFC] dark:bg-zinc-950 p-8">
+          {children}
+        </main>
+      </div>
+
+      {/* Floating Action Button (Save) */}
+      <div className="fixed bottom-8 right-8">
+        <button 
+          onClick={handleSave}
+          title="Save Dayparting Schedule"
+          className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-900 text-white shadow-xl hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-transform active:scale-95"
+        >
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: ReactNode }) {
+  return (
+    <DashboardProvider initialCampaigns={initialCampaigns}>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </DashboardProvider>
+  );
+}
