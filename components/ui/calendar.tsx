@@ -118,7 +118,7 @@ export function Calendar({ value, min, onChange, className }: CalendarProps) {
               className={cn(
                 "h-10 rounded-lg text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50",
                 !selectable && "cursor-not-allowed bg-zinc-100 text-zinc-400 dark:bg-zinc-900 dark:text-zinc-600",
-                selectable && "bg-zinc-50 text-zinc-900 hover:bg-indigo-50 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800",
+                selectable && "bg-zinc-50 text-zinc-900 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800",
                 isSelected && "bg-indigo-600 text-white shadow-sm",
                 !isSelected && isToday && "ring-1 ring-indigo-500/40"
               )}

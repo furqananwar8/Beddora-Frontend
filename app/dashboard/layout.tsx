@@ -19,6 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { DashboardProvider, useDashboard, Campaign } from "@/lib/context/dashboard-context";
+import { useCampaigns } from "@/hooks/useCampaigns";
+import { staticCampaignData } from "@/data/static-campaigns";
 
 const navigation = [
   // { name: 'Dashboard', icon: LayoutDashboard, href: '#', current: false },
@@ -28,14 +30,7 @@ const navigation = [
   // { name: 'Audience', icon: Users, href: '#', current: false },
 ];
 
-const initialCampaigns: Campaign[] = [
-  { id: '88294410', name: 'US-PROMO-Q4-NIKE-REACT', status: 'ACTIVE', budget: '$2,450.00/d' },
-  { id: '88294411', name: 'EU-SNEAKER-FLASHSALE', status: 'ACTIVE', budget: '$1,800.00/d' },
-  { id: '1102934', name: 'SEA-REMARKETING-2024', status: 'PAUSED', budget: '$450.00/d' },
-  { id: '9920331', name: 'LATAM-APPAREL-SPRING', status: 'ACTIVE', budget: '$5,000.00/d' },
-];
-
-function DashboardLayoutContent({ children }: { children: ReactNode }) {
+function DashboardLayoutContent({ children, campaigns }: { children: ReactNode; campaigns: Campaign[] }) {
   const { selectedCampaign, setSelectedCampaign, handleSave } = useDashboard();
 
   return (
@@ -80,7 +75,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
         </div>
         <ScrollArea className="flex-1">
           <div className="space-y-1 p-2">
-            {initialCampaigns.map((campaign) => (
+            {campaigns.map((campaign) => (
               <div
                 key={campaign.id}
                 onClick={() => setSelectedCampaign(campaign)}
@@ -92,16 +87,16 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <div className={cn(
+                  {/* <div className={cn(
                     "text-[10px] font-bold tracking-wider",
                     campaign.status === 'ACTIVE' ? "text-emerald-600" : "text-zinc-400"
                   )}>
                     {campaign.status}
-                  </div>
-                  <Switch 
+                  </div> */}
+                  {/* <Switch 
                     checked={campaign.status === 'ACTIVE'} 
                     className="scale-75 data-[state=checked]:bg-emerald-500"
-                  />
+                  /> */}
                 </div>
                 <div>
                   <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-tight">
@@ -181,9 +176,29 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
 }
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
+  // Fetch campaigns at the layout level
+  const campaignsQuery = useCampaigns({ page: 1, limit: 20, state: "paused" });
+  
+  // Build campaigns list from API data or staticCampaignData
+  const initialCampaigns: Campaign[] = campaignsQuery.data?.data?.map((campaign) => (
+    {
+      id: campaign.campaignId.toString(),
+      name: campaign.name,
+      status: campaign.state.toUpperCase() as 'ACTIVE' | 'PAUSED',
+      budget: `$${campaign.dailyBudget.toFixed(2)}/d`,
+    }
+  )) || Object.values(staticCampaignData).map((campaign) => (
+    {
+      id: campaign.campaignId.toString(),
+      name: campaign.name,
+      status: campaign.state.toUpperCase() as 'ACTIVE' | 'PAUSED',
+      budget: `$${campaign.dailyBudget.toFixed(2)}/d`,
+    }
+  ));
+
   return (
     <DashboardProvider initialCampaigns={initialCampaigns}>
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+      <DashboardLayoutContent campaigns={initialCampaigns}>{children}</DashboardLayoutContent>
     </DashboardProvider>
   );
 }
