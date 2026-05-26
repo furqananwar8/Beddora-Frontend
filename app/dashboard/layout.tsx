@@ -1,24 +1,35 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { 
-  Calendar, 
+import {
+  Calendar,
   Loader2,
-  Settings, 
+  Settings,
   Zap,
   HelpCircle,
   Bell,
+  Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { DashboardProvider, useDashboard, Campaign } from "@/lib/context/dashboard-context";
+import {
+  DashboardProvider,
+  useDashboard,
+  Campaign,
+} from "@/lib/context/dashboard-context";
 import { useCampaigns } from "@/hooks/useCampaigns";
-import { toast, Toaster } from "react-hot-toast";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 const navigation = [
   // { name: 'Dashboard', icon: LayoutDashboard, href: '#', current: false },
   // { name: 'Campaigns', icon: BarChart3, href: '#', current: false },
-  { name: 'Dayparting', icon: Calendar, href: '/dashboard/dayparting', current: true },
+  {
+    name: "Dayparting",
+    icon: Calendar,
+    href: "/dashboard/dayparting",
+    current: true,
+  },
   // { name: 'Rules', icon: Zap, href: '#', current: false },
   // { name: 'Audience', icon: Users, href: '#', current: false },
 ];
@@ -43,7 +54,7 @@ function DashboardLayoutContent({
   useEffect(() => {
     if (!selectedCampaignId) return;
 
-    const es = new EventSource("/api/v1/campaign-schedules/events");
+    const es = new EventSource(`${process.env.NEXT_PUBLIC_API_BASE_URL}/campaign-schedules/events`);
 
     es.onmessage = (event) => {
       try {
@@ -87,7 +98,6 @@ function DashboardLayoutContent({
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] dark:bg-zinc-950">
-      <Toaster position="top-right" />
       {/* Primary Sidebar (Navigation) */}
       <div className="flex w-16 flex-col items-center border-r bg-white dark:bg-zinc-900 py-4 dark:border-zinc-800">
         <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600">
@@ -100,9 +110,9 @@ function DashboardLayoutContent({
               href={item.href}
               className={cn(
                 "group relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
-                item.current 
-                  ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400" 
-                  : "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 dark:hover:bg-zinc-800"
+                item.current
+                  ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400"
+                  : "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 dark:hover:bg-zinc-800",
               )}
             >
               <item.icon className="h-5 w-5" />
@@ -123,8 +133,9 @@ function DashboardLayoutContent({
       {/* Secondary Sidebar (Campaigns) */}
       <div className="flex w-72 flex-col border-r bg-white dark:bg-zinc-900 dark:border-zinc-800">
         <div className="flex items-center justify-between border-b px-4 py-4 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Campaigns</h2>
-          
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            Campaigns
+          </h2>
         </div>
         <ScrollArea className="flex-1">
           <div className="space-y-1 p-2">
@@ -150,8 +161,8 @@ function DashboardLayoutContent({
                 className={cn(
                   "group relative flex flex-col space-y-2 rounded-xl p-4 transition-all cursor-pointer border-2",
                   selectedCampaign?.id === campaign.id
-                    ? "bg-indigo-50/50 border-indigo-100 dark:bg-indigo-900/10 dark:border-indigo-900/30" 
-                    : "hover:bg-zinc-50 border-transparent dark:hover:bg-zinc-800"
+                    ? "bg-indigo-50/50 border-indigo-100 dark:bg-indigo-900/10 dark:border-indigo-900/30"
+                    : "hover:bg-zinc-50 border-transparent dark:hover:bg-zinc-800",
                 )}
               >
                 <div className="flex items-center justify-between">
@@ -178,7 +189,9 @@ function DashboardLayoutContent({
                   </div>
                   <div className="mt-1 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
                     <span>ID: {campaign.id}</span>
-                    <span className="text-zinc-900 dark:text-zinc-100 font-bold">{campaign.budget}</span>
+                    <span className="text-zinc-900 dark:text-zinc-100 font-bold">
+                      {campaign.budget}
+                    </span>
                   </div>
                 </div>
                 {selectedCampaign?.id === campaign.id && (
@@ -224,26 +237,11 @@ function DashboardLayoutContent({
 
       {/* Floating Action Button (Save) */}
       <div className="fixed bottom-8 right-8">
-        <button 
-          onClick={handleSave}
-          title="Save Dayparting Schedule"
-          className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-900 text-white shadow-xl hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-transform active:scale-95"
-        >
-          <svg
-            className="h-6 w-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-            />
-          </svg>
-        </button>
+        
+          <Button className="bg-indigo-600 text-white" onClick={handleSave}>
+            <Save />
+            Save
+          </Button>
       </div>
     </div>
   );
@@ -252,16 +250,15 @@ function DashboardLayoutContent({
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   // Fetch campaigns at the layout level
   const campaignsQuery = useCampaigns({ page: 1, limit: 20 });
-  
+
   // Build campaigns list only from API data.
-  const initialCampaigns: Campaign[] = campaignsQuery.data?.data?.map((campaign) => (
-    {
+  const initialCampaigns: Campaign[] =
+    campaignsQuery.data?.data?.map((campaign) => ({
       id: campaign.campaignId.toString(),
       name: campaign.name,
-      status: campaign.state.toUpperCase() as 'ACTIVE' | 'PAUSED',
+      status: campaign.state.toUpperCase() as "ACTIVE" | "PAUSED",
       budget: `$${campaign.dailyBudget.toFixed(2)}/d`,
-    }
-  )) || [];
+    })) || [];
 
   return (
     <DashboardProvider initialCampaigns={initialCampaigns}>

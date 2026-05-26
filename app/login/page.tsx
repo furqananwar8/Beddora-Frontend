@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
+import { toast } from "sonner";
 // import { AmazonIcon } from "@/components/icons/amazon"
 
 export default function LoginPage() {
@@ -23,7 +24,7 @@ export default function LoginPage() {
     } catch (err) {
       console.log("Login initiation failed:", err);
 
-      alert("Failed to start login. Please try again.");
+      toast.error("Failed to start login. Please try again.");
     } finally {
       setLoading(false);
     }

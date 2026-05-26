@@ -5,6 +5,7 @@ import {
   BackendSchedule,
   updateCampaignSchedule,
 } from "@/api/services/campaigns.api";
+import { toast } from "sonner";
 
 export type Campaign = {
   id: string;
@@ -117,10 +118,10 @@ export function DashboardProvider({ children, initialCampaigns }: { children: Re
         schedules: pendingScheduleSave.schedules,
       });
 
-      alert(`Saved schedule for ${pendingScheduleSave.campaignName}!`);
+      toast.success(`Saved schedule for ${pendingScheduleSave.campaignName}!`);
     } catch (error) {
       console.error("Failed to save dayparting schedule:", error);
-      alert(`Failed to save schedule for ${pendingScheduleSave.campaignName}.`);
+      toast.error(`Failed to save schedule for ${pendingScheduleSave.campaignName}.`);
     }
   };
 

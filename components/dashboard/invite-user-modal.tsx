@@ -16,6 +16,7 @@ import { X } from "lucide-react";
 import { GlobalForm } from "../common/GlobalForm";
 import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
+import { toast } from "sonner";
 type InviteUserFormValues = {
   email: string;
 };
@@ -43,7 +44,7 @@ export function InviteUserModal() {
       };
     },
     onSuccess: (_, variables) => {
-      alert(`Invitation sent to ${variables.email}`);
+      toast.success(`Invitation sent to ${variables.email}`);
       form.reset();
     },
   });
