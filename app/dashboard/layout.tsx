@@ -1,26 +1,19 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { 
-  BarChart3, 
   Calendar, 
-  LayoutDashboard, 
+  Loader2,
   Settings, 
-  Users, 
   Zap,
-  MessageSquare,
   HelpCircle,
   Bell,
-  Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { DashboardProvider, useDashboard, Campaign } from "@/lib/context/dashboard-context";
 import { useCampaigns } from "@/hooks/useCampaigns";
-import { staticCampaignData } from "@/data/static-campaigns";
+import { toast, Toaster } from "react-hot-toast";
 
 const navigation = [
   // { name: 'Dashboard', icon: LayoutDashboard, href: '#', current: false },
@@ -30,11 +23,71 @@ const navigation = [
   // { name: 'Audience', icon: Users, href: '#', current: false },
 ];
 
-function DashboardLayoutContent({ children, campaigns }: { children: ReactNode; campaigns: Campaign[] }) {
+function DashboardLayoutContent({
+  children,
+  campaigns,
+  isLoading,
+  isError,
+}: {
+  children: ReactNode;
+  campaigns: Campaign[];
+  isLoading: boolean;
+  isError: boolean;
+}) {
   const { selectedCampaign, setSelectedCampaign, handleSave } = useDashboard();
+  const [operatingCampaignId, setOperatingCampaignId] = useState<string | null>(
+    null,
+  );
+  const selectedCampaignId = selectedCampaign?.id ?? null;
+
+  useEffect(() => {
+    if (!selectedCampaignId) return;
+
+    const es = new EventSource("/api/v1/campaign-schedules/events");
+
+    es.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        const eventCampaignId =
+          msg.campaignId === undefined ? null : String(msg.campaignId);
+
+        if (eventCampaignId !== selectedCampaignId) {
+          return;
+        }
+
+        switch (msg.type) {
+          case "SCHEDULE_EXECUTING":
+            setOperatingCampaignId(eventCampaignId);
+            toast(`Campaign ${msg.campaignId} schedule is operating...`);
+            break;
+          case "SCHEDULE_COMPLETED":
+            setOperatingCampaignId(null);
+            toast.success(`Campaign ${msg.campaignId} schedule completed.`);
+            break;
+          case "SCHEDULE_FAILED":
+            setOperatingCampaignId(null);
+            toast.error(`Campaign ${msg.campaignId} failed: ${msg.error}`);
+            break;
+          default:
+            break;
+        }
+      } catch (error) {
+        console.error("DashboardLayout - invalid SSE payload", error);
+      }
+    };
+
+    es.onerror = () => {
+      // Browser auto-reconnects every ~3s by default.
+    };
+
+    return () => {
+      es.close();
+    };
+  }, [selectedCampaignId]);
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] dark:bg-zinc-950">
+      <Toaster position="top-right" />
       {/* Primary Sidebar (Navigation) */}
       <div className="flex w-16 flex-col items-center border-r bg-white dark:bg-zinc-900 py-4 dark:border-zinc-800">
         <div className="mb-8 flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600">
@@ -75,6 +128,21 @@ function DashboardLayoutContent({ children, campaigns }: { children: ReactNode; 
         </div>
         <ScrollArea className="flex-1">
           <div className="space-y-1 p-2">
+            {isLoading && (
+              <div className="px-3 py-4 text-sm text-zinc-500 dark:text-zinc-400">
+                Loading campaigns...
+              </div>
+            )}
+            {isError && (
+              <div className="px-3 py-4 text-sm text-red-600 dark:text-red-400">
+                Unable to load campaigns.
+              </div>
+            )}
+            {!isLoading && !isError && campaigns.length === 0 && (
+              <div className="px-3 py-4 text-sm text-zinc-500 dark:text-zinc-400">
+                No campaigns found.
+              </div>
+            )}
             {campaigns.map((campaign) => (
               <div
                 key={campaign.id}
@@ -87,6 +155,12 @@ function DashboardLayoutContent({ children, campaigns }: { children: ReactNode; 
                 )}
               >
                 <div className="flex items-center justify-between">
+                  {operatingCampaignId === campaign.id && (
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Operating
+                    </div>
+                  )}
                   {/* <div className={cn(
                     "text-[10px] font-bold tracking-wider",
                     campaign.status === 'ACTIVE' ? "text-emerald-600" : "text-zinc-400"
@@ -177,9 +251,9 @@ function DashboardLayoutContent({ children, campaigns }: { children: ReactNode; 
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   // Fetch campaigns at the layout level
-  const campaignsQuery = useCampaigns({ page: 1, limit: 20, state: "paused" });
+  const campaignsQuery = useCampaigns({ page: 1, limit: 20 });
   
-  // Build campaigns list from API data or staticCampaignData
+  // Build campaigns list only from API data.
   const initialCampaigns: Campaign[] = campaignsQuery.data?.data?.map((campaign) => (
     {
       id: campaign.campaignId.toString(),
@@ -187,18 +261,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       status: campaign.state.toUpperCase() as 'ACTIVE' | 'PAUSED',
       budget: `$${campaign.dailyBudget.toFixed(2)}/d`,
     }
-  )) || Object.values(staticCampaignData).map((campaign) => (
-    {
-      id: campaign.campaignId.toString(),
-      name: campaign.name,
-      status: campaign.state.toUpperCase() as 'ACTIVE' | 'PAUSED',
-      budget: `$${campaign.dailyBudget.toFixed(2)}/d`,
-    }
-  ));
+  )) || [];
 
   return (
     <DashboardProvider initialCampaigns={initialCampaigns}>
-      <DashboardLayoutContent campaigns={initialCampaigns}>{children}</DashboardLayoutContent>
+      <DashboardLayoutContent
+        campaigns={initialCampaigns}
+        isLoading={campaignsQuery.isLoading}
+        isError={campaignsQuery.isError}
+      >
+        {children}
+      </DashboardLayoutContent>
     </DashboardProvider>
   );
 }

@@ -1,6 +1,10 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import {
+  BackendSchedule,
+  updateCampaignSchedule,
+} from "@/api/services/campaigns.api";
 
 export type Campaign = {
   id: string;
@@ -18,6 +22,12 @@ type CampaignSchedules = {
   dateOverrides: DateOverrides;
 };
 
+export type PendingScheduleSave = {
+  campaignId: number;
+  campaignName: string;
+  schedules: BackendSchedule[];
+};
+
 type DashboardContextType = {
   selectedCampaign: Campaign | null;
   setSelectedCampaign: (campaign: Campaign) => void;
@@ -25,6 +35,7 @@ type DashboardContextType = {
   setWeekTemplate: (campaignId: string, weekTemplate: WeekTemplate) => void;
   setDateOverride: (campaignId: string, date: string, schedule: boolean[]) => void;
   deleteDateOverride: (campaignId: string, date: string) => void;
+  setPendingScheduleSave: (save: PendingScheduleSave | null) => void;
   handleSave: () => void;
 };
 
@@ -40,35 +51,25 @@ const createEmptyWeekTemplate = (): WeekTemplate => {
   return template;
 };
 
-const createInitialWeekTemplate = (): WeekTemplate => {
-  const template = createEmptyWeekTemplate();
-  for (let d = 0; d < 5; d += 1) {
-    for (let h = 8; h <= 20; h += 1) {
-      template[days[d]][h] = true;
-    }
-  }
-  return template;
-};
-
 const createEmptyCampaignSchedule = (): CampaignSchedules => ({
   weekTemplate: createEmptyWeekTemplate(),
   dateOverrides: {},
 });
 
 export function DashboardProvider({ children, initialCampaigns }: { children: ReactNode; initialCampaigns: Campaign[] }) {
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(initialCampaigns[1] || initialCampaigns[0] || null);
-  const [campaignSchedules, setCampaignSchedules] = useState<Record<string, CampaignSchedules>>(() => {
-    const initial: Record<string, CampaignSchedules> = {};
-    if (selectedCampaign) {
-      initial[selectedCampaign.id] = {
-        weekTemplate: createInitialWeekTemplate(),
-        dateOverrides: {},
-      };
-    }
-    return initial;
-  });
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(
+    initialCampaigns[1]?.id || initialCampaigns[0]?.id || null,
+  );
+  const [campaignSchedules, setCampaignSchedules] = useState<Record<string, CampaignSchedules>>({});
+  const [pendingScheduleSave, setPendingScheduleSave] =
+    useState<PendingScheduleSave | null>(null);
 
-  const updateCampaignSchedule = (campaignId: string, updater: (schedule: CampaignSchedules) => CampaignSchedules) => {
+  const selectedCampaign =
+    initialCampaigns.find((campaign) => campaign.id === selectedCampaignId) ||
+    initialCampaigns[0] ||
+    null;
+
+  const updateLocalCampaignSchedule = (campaignId: string, updater: (schedule: CampaignSchedules) => CampaignSchedules) => {
     setCampaignSchedules((prev) => {
       const current = prev[campaignId] || createEmptyCampaignSchedule();
       return {
@@ -79,14 +80,14 @@ export function DashboardProvider({ children, initialCampaigns }: { children: Re
   };
 
   const setWeekTemplate = (campaignId: string, weekTemplate: WeekTemplate) => {
-    updateCampaignSchedule(campaignId, (schedule) => ({
+    updateLocalCampaignSchedule(campaignId, (schedule) => ({
       ...schedule,
       weekTemplate,
     }));
   };
 
   const setDateOverride = (campaignId: string, date: string, schedule: boolean[]) => {
-    updateCampaignSchedule(campaignId, (current) => ({
+    updateLocalCampaignSchedule(campaignId, (current) => ({
       ...current,
       dateOverrides: {
         ...current.dateOverrides,
@@ -96,7 +97,7 @@ export function DashboardProvider({ children, initialCampaigns }: { children: Re
   };
 
   const deleteDateOverride = (campaignId: string, date: string) => {
-    updateCampaignSchedule(campaignId, (current) => {
+    updateLocalCampaignSchedule(campaignId, (current) => {
       const overrides = { ...current.dateOverrides };
       delete overrides[date];
       return {
@@ -106,30 +107,33 @@ export function DashboardProvider({ children, initialCampaigns }: { children: Re
     });
   };
 
-  const handleSave = () => {
-    if (!selectedCampaign) return;
+  const handleSave = async () => {
+    if (!selectedCampaign || !pendingScheduleSave) return;
 
-    const schedule = campaignSchedules[selectedCampaign.id] || createEmptyCampaignSchedule();
+    try {
+      console.log("Saving Dayparting Schedule:", pendingScheduleSave);
 
-    console.log("Saving Dayparting Schedule:", {
-      campaignName: selectedCampaign.name,
-      campaignId: selectedCampaign.id,
-      weekTemplate: schedule.weekTemplate,
-      dateOverrides: schedule.dateOverrides,
-    });
+      await updateCampaignSchedule(pendingScheduleSave.campaignId, {
+        schedules: pendingScheduleSave.schedules,
+      });
 
-    alert(`Saved schedule for ${selectedCampaign.name}!\nCheck console for details.`);
+      alert(`Saved schedule for ${pendingScheduleSave.campaignName}!`);
+    } catch (error) {
+      console.error("Failed to save dayparting schedule:", error);
+      alert(`Failed to save schedule for ${pendingScheduleSave.campaignName}.`);
+    }
   };
 
   return (
-    <DashboardContext.Provider
+      <DashboardContext.Provider
       value={{
         selectedCampaign,
-        setSelectedCampaign,
+        setSelectedCampaign: (campaign) => setSelectedCampaignId(campaign.id),
         campaignSchedules,
         setWeekTemplate,
         setDateOverride,
         deleteDateOverride,
+        setPendingScheduleSave,
         handleSave,
       }}
     >

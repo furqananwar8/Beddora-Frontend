@@ -59,6 +59,10 @@ export type CampaignListParams = {
   state?: string;
 };
 
+export type UpdateCampaignSchedulePayload = {
+  schedules: BackendSchedule[];
+};
+
 export const getCampaigns = async ({ page = 1, limit = 20, state }: CampaignListParams): Promise<CampaignListResponse> => {
   const response = await apiClient.get("/campaigns", {
     params: {
@@ -67,6 +71,22 @@ export const getCampaigns = async ({ page = 1, limit = 20, state }: CampaignList
       state,
     },
   });
+  return response.data;
+};
+
+export const updateCampaignSchedule = async (
+  campaignId: number,
+  payload: UpdateCampaignSchedulePayload,
+) => {
+  const response = await apiClient.post(
+    `/campaign-schedules/${campaignId}/schedule`,
+    payload,
+  );
+  return response.data;
+};
+
+export const syncCampaignSchedulesNow = async () => {
+  const response = await apiClient.post("/campaign-schedules/sync-now");
   return response.data;
 };
 

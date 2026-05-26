@@ -12,22 +12,27 @@ import {
   DateOverrides,
 } from "@/lib/context/dashboard-context";
 import { Button } from "@/components/ui/button";
-import { Trash2, X } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { CalendarIcon } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
-import useCampaigns from "@/hooks/useCampaigns";
-import { toast, Toaster } from "react-hot-toast";
 import {
-  staticCampaignData,
+  format,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  differenceInCalendarDays,
+} from "date-fns";
+import useCampaigns from "@/hooks/useCampaigns";
+import { toast } from "react-hot-toast";
+import {
   BackendTimeSlot,
   BackendSchedule,
-  BackendCampaign,
-} from "@/data/static-campaigns";
+  syncCampaignSchedulesNow,
+} from "@/api/services/campaigns.api";
 
 const days: DayKey[] = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const hours = Array.from({ length: 24 }, (_, i) =>
@@ -35,13 +40,46 @@ const hours = Array.from({ length: 24 }, (_, i) =>
 );
 const weekKeys = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
 
+type SyncedCampaign = {
+  id: string;
+  name: string;
+  state: string;
+  scheduleCount: number | null;
+};
+
+type CampaignScheduleDraft = {
+  weekTemplate?: WeekTemplate;
+  dateOverrides?: DateOverrides;
+};
+
+type BackendTimeSlotLike = BackendTimeSlot & {
+  start?: string;
+  end?: string;
+  start_time?: string;
+  end_time?: string;
+};
+
+type BackendScheduleLike = BackendSchedule & {
+  schedule_date?: string | null;
+  time_slots?: BackendTimeSlot[];
+  slots?: BackendTimeSlot[];
+};
+
 function formatDateISO(date: Date) {
-  return date.toISOString().slice(0, 10);
+  return format(date, "yyyy-MM-dd");
 }
 
 function backendDateToISO(dateString: string | null): string | null {
   if (!dateString) return null;
-  if (dateString.length !== 8) return null;
+
+  if (/^\d{8}$/.test(dateString)) {
+    return `${dateString.slice(0, 4)}-${dateString.slice(4, 6)}-${dateString.slice(6, 8)}`;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+    return dateString.slice(0, 10);
+  }
+
   return `${dateString.slice(0, 4)}-${dateString.slice(4, 6)}-${dateString.slice(6, 8)}`;
 }
 
@@ -54,40 +92,97 @@ function getWeekDayKey(dateString: string): DayKey {
 function timeSlotsToBooleanSchedule(timeSlots: BackendTimeSlot[]) {
   const schedule = Array(24).fill(false);
 
-  timeSlots.forEach(({ startTime, endTime }) => {
-    const startHour = parseInt(startTime.slice(0, 2), 10);
-    const endHour = parseInt(endTime.slice(0, 2), 10);
-    for (let hour = startHour; hour < endHour && hour < 24; hour += 1) {
-      if (hour >= 0) schedule[hour] = true;
+  timeSlots.forEach((timeSlot) => {
+    const { startTime, endTime } = normalizeTimeSlot(timeSlot);
+    const startHour = parseTimeSlotHour(startTime);
+    const rawEndHour = parseTimeSlotHour(endTime);
+    if (startHour === null || rawEndHour === null) return;
+
+    const endHour =
+      rawEndHour <= startHour && rawEndHour === 0 ? 24 : rawEndHour;
+
+    for (let hour = startHour; hour < endHour; hour += 1) {
+      const normalizedHour = hour % 24;
+      if (normalizedHour >= 0) schedule[normalizedHour] = true;
     }
   });
 
   return schedule;
 }
 
+function normalizeTimeSlot(timeSlot: BackendTimeSlot): BackendTimeSlot {
+  const slot = timeSlot as BackendTimeSlotLike;
+
+  return {
+    startTime: slot.startTime ?? slot.start_time ?? slot.start ?? "",
+    endTime: slot.endTime ?? slot.end_time ?? slot.end ?? "",
+  };
+}
+
+function getScheduleDate(schedule: BackendSchedule) {
+  const normalized = schedule as BackendScheduleLike;
+  return normalized.scheduleDate ?? normalized.schedule_date ?? null;
+}
+
+function getScheduleTimeSlots(schedule: BackendSchedule) {
+  const normalized = schedule as BackendScheduleLike;
+  return (
+    normalized.timeSlots ??
+    normalized.time_slots ??
+    normalized.slots ??
+    []
+  );
+}
+
+function parseTimeSlotHour(time: string | number | null | undefined) {
+  if (typeof time === "number") {
+    return time >= 0 && time <= 24 ? time : null;
+  }
+
+  if (!time) return null;
+
+  const hour = Number.parseInt(String(time).slice(0, 2), 10);
+  if (Number.isNaN(hour) || hour < 0 || hour > 24) return null;
+  return hour;
+}
+
 function buildDateOverridesFromSchedules(
   schedules: BackendSchedule[],
 ): DateOverrides {
   return schedules.reduce((acc, schedule) => {
-    const scheduleISO = backendDateToISO(schedule.scheduleDate);
+    const scheduleISO = backendDateToISO(getScheduleDate(schedule));
     if (!scheduleISO) return acc;
-    acc[scheduleISO] = timeSlotsToBooleanSchedule(schedule.timeSlots);
+    const slotSchedule = timeSlotsToBooleanSchedule(
+      getScheduleTimeSlots(schedule),
+    );
+    const current = acc[scheduleISO] ?? createZeroSchedule();
+    acc[scheduleISO] = current.map(
+      (active, hour) => active || slotSchedule[hour],
+    );
     return acc;
   }, {} as DateOverrides);
 }
 
 function buildWeeklyTemplateFromSchedules(
   schedules: BackendSchedule[],
+  weekStartISO: string,
 ): WeekTemplate {
   const template = createEmptyWeekTemplate();
+  const weekStartDate = new Date(`${weekStartISO}T00:00:00`);
 
   schedules.forEach((schedule) => {
-    const slotSchedule = timeSlotsToBooleanSchedule(schedule.timeSlots);
+    const scheduleDate = getScheduleDate(schedule);
+    const slotSchedule = timeSlotsToBooleanSchedule(
+      getScheduleTimeSlots(schedule),
+    );
 
-    if (schedule.scheduleDate) {
-      const scheduleISO = backendDateToISO(schedule.scheduleDate);
+    if (scheduleDate) {
+      const scheduleISO = backendDateToISO(scheduleDate);
       if (!scheduleISO) return;
-      const dayKey = getWeekDayKey(scheduleISO);
+      const scheduledDate = new Date(`${scheduleISO}T00:00:00`);
+      const dayIndex = differenceInCalendarDays(scheduledDate, weekStartDate);
+      if (dayIndex < 0 || dayIndex >= days.length) return;
+      const dayKey = days[dayIndex];
       template[dayKey] = template[dayKey].map(
         (active, hour) => active || slotSchedule[hour],
       );
@@ -126,7 +221,7 @@ function isoToBackendDate(iso: string) {
 }
 
 function buildSchedulesFromState(
-  fallbackSchedules: BackendSchedule[] | undefined,
+  existingSchedules: BackendSchedule[] | undefined,
   weekTemplate: WeekTemplate,
   dateOverrides: DateOverrides,
   campaignIdNum: number,
@@ -134,9 +229,8 @@ function buildSchedulesFromState(
 ) {
   const result: BackendSchedule[] = [];
 
-  // include fallback schedules first (to preserve ids/status)
-  if (fallbackSchedules) {
-    result.push(...fallbackSchedules.map((s) => ({ ...s })));
+  if (existingSchedules) {
+    result.push(...existingSchedules.map((s) => ({ ...s })));
   }
 
   // If a concrete week start is provided, emit date-specific schedules for each
@@ -148,6 +242,7 @@ function buildSchedulesFromState(
       const daySchedule = weekTemplate[d] ?? createZeroSchedule();
       if (!daySchedule.some(Boolean)) return;
       const iso = formatDateISO(addDays(base, di));
+      if (Object.hasOwn(dateOverrides, iso)) return;
       result.push({
         id: -1,
         campaignId: campaignIdNum,
@@ -219,6 +314,66 @@ function createZeroSchedule() {
   return Array(24).fill(false);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function readCampaignId(value: unknown) {
+  if (typeof value === "number" || typeof value === "string") {
+    return String(value);
+  }
+
+  return undefined;
+}
+
+function toSyncedCampaign(value: unknown): SyncedCampaign | null {
+  if (!isRecord(value)) return null;
+
+  const id = readCampaignId(value.campaignId ?? value.id);
+  if (!id) return null;
+
+  const schedules = Array.isArray(value.schedules) ? value.schedules : null;
+
+  return {
+    id,
+    name: readString(value.name) ?? `Campaign ${id}`,
+    state: readString(value.state) ?? "unknown",
+    scheduleCount: schedules ? schedules.length : null,
+  };
+}
+
+function extractCampaignsFromSseMessage(message: unknown) {
+  if (!isRecord(message)) return [];
+
+  const candidates = [
+    message.campaigns,
+    message.fetchedCampaigns,
+    message.syncedCampaigns,
+    message.campaign,
+  ];
+
+  if (isRecord(message.data)) {
+    candidates.push(message.data.campaigns, message.data.campaign);
+  } else {
+    candidates.push(message.data);
+  }
+
+  return candidates.flatMap((candidate) => {
+    if (Array.isArray(candidate)) {
+      return candidate
+        .map(toSyncedCampaign)
+        .filter((campaign): campaign is SyncedCampaign => Boolean(campaign));
+    }
+
+    const campaign = toSyncedCampaign(candidate);
+    return campaign ? [campaign] : [];
+  });
+}
+
 export function SchedulerGrid() {
   const {
     selectedCampaign,
@@ -226,8 +381,11 @@ export function SchedulerGrid() {
     setWeekTemplate,
     setDateOverride,
     deleteDateOverride,
+    setPendingScheduleSave,
   } = useDashboard();
   const [mode, setMode] = useState<"WEEK" | "DATE">("WEEK");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncedCampaigns, setSyncedCampaigns] = useState<SyncedCampaign[]>([]);
 
   const tomorrow = useMemo(() => {
     const date = new Date();
@@ -235,28 +393,17 @@ export function SchedulerGrid() {
     return date;
   }, []);
   const defaultDate = formatDateISO(tomorrow);
-  const [selectedDate, setSelectedDate] = useState<string>(defaultDate);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const today = useMemo(() => new Date(), []);
   const defaultWeekStart = useMemo(
     () => formatDateISO(startOfWeek(today, { weekStartsOn: 1 })),
     [today],
   );
-  const [weekStart, setWeekStart] = useState<string>(defaultWeekStart);
+  const [weekStart, setWeekStart] = useState<string | null>(null);
+  const campaignsQuery = useCampaigns({ page: 1, limit: 20 });
+  const { refetch: refetchCampaigns } = campaignsQuery;
 
-  const weekStartDate = new Date(`${weekStart}T00:00:00`);
-  const weekEndDate = endOfWeek(weekStartDate, { weekStartsOn: 1 });
-  const weekRangeLabel = `${format(weekStartDate, "MMM d")} - ${format(weekEndDate, "MMM d")}`;
-  const weekDates = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) =>
-      format(addDays(weekStartDate, i), "MMM d"),
-    );
-  }, [weekStart]);
-
-  if (!selectedCampaign) return null;
-
-  // Example: fetch paused campaigns (page 3, limit 20) using TanStack Query
-  const campaignsQuery = useCampaigns({ page: 3, limit: 20, state: "paused" });
   if (campaignsQuery.data) {
     console.log("SchedulerGrid - campaigns list:", {
       meta: campaignsQuery.data.meta,
@@ -273,89 +420,179 @@ export function SchedulerGrid() {
   if (campaignsQuery.isLoading) console.log("SchedulerGrid - campaigns loading...");
   if (campaignsQuery.error) console.log("SchedulerGrid - campaigns error:", campaignsQuery.error);
 
-  // Try to get campaign data from API response first, then fall back to static data
-  const apiCampaignData = campaignsQuery.data?.data?.find(
-    (c) => c.campaignId === Number(selectedCampaign.id),
-  );
-  const fallbackData = apiCampaignData || staticCampaignData[selectedCampaign.id];
-  const fallbackSchedule = fallbackData
-    ? {
-        weekTemplate: buildWeeklyTemplateFromSchedules(fallbackData.schedules),
-        dateOverrides: buildDateOverridesFromSchedules(fallbackData.schedules),
-      }
+  const selectedCampaignKey = selectedCampaign?.id ?? "";
+  const apiCampaignData = selectedCampaign
+    ? campaignsQuery.data?.data?.find(
+        (c) => c.campaignId === Number(selectedCampaign.id),
+      )
     : undefined;
 
-  const campaignSchedule = {
-    weekTemplate:
-      campaignSchedules[selectedCampaign.id]?.weekTemplate ??
-      fallbackSchedule?.weekTemplate ??
-      createEmptyWeekTemplate(),
-    dateOverrides: {
-      ...(fallbackSchedule?.dateOverrides ?? {}),
-      ...(campaignSchedules[selectedCampaign.id]?.dateOverrides ?? {}),
+  const firstBackendScheduleDate = useMemo(() => {
+    return (
+      apiCampaignData?.schedules
+        .map((schedule) => backendDateToISO(getScheduleDate(schedule)))
+        .find((date): date is string => Boolean(date)) ?? null
+    );
+  }, [apiCampaignData?.schedules]);
+  const firstBackendWeekStart = firstBackendScheduleDate
+    ? formatDateISO(
+        startOfWeek(new Date(`${firstBackendScheduleDate}T00:00:00`), {
+          weekStartsOn: 1,
+        }),
+      )
+    : null;
+  const activeWeekStart = weekStart ?? firstBackendWeekStart ?? defaultWeekStart;
+  const activeSelectedDate = selectedDate ?? firstBackendScheduleDate ?? defaultDate;
+
+  const weekStartDate = new Date(`${activeWeekStart}T00:00:00`);
+  const weekEndDate = endOfWeek(weekStartDate, { weekStartsOn: 1 });
+  const weekRangeLabel = `${format(weekStartDate, "MMM d")} - ${format(weekEndDate, "MMM d")}`;
+  const weekDates = useMemo(() => {
+    const base = new Date(`${activeWeekStart}T00:00:00`);
+    return Array.from({ length: 7 }, (_, i) =>
+      format(addDays(base, i), "MMM d"),
+    );
+  }, [activeWeekStart]);
+
+  const backendSchedule = useMemo(() => {
+    if (!apiCampaignData) return undefined;
+
+    return {
+      weekTemplate: buildWeeklyTemplateFromSchedules(
+        apiCampaignData.schedules,
+        activeWeekStart,
+      ),
+      dateOverrides: buildDateOverridesFromSchedules(apiCampaignData.schedules),
+    };
+  }, [activeWeekStart, apiCampaignData]);
+
+  const campaignSchedule = useMemo(
+    () => {
+      const draft =
+        (campaignSchedules[selectedCampaignKey] as CampaignScheduleDraft) ??
+        {};
+
+      return {
+        weekTemplate: {
+          ...(backendSchedule?.weekTemplate ?? createEmptyWeekTemplate()),
+          ...(draft.weekTemplate ?? {}),
+        },
+        dateOverrides: {
+          ...(backendSchedule?.dateOverrides ?? {}),
+          ...(draft.dateOverrides ?? {}),
+        },
+      };
     },
-  };
+    [backendSchedule, campaignSchedules, selectedCampaignKey],
+  );
+
+  const serializedWeekTemplate = JSON.stringify(campaignSchedule.weekTemplate);
+  const serializedDateOverrides = JSON.stringify(campaignSchedule.dateOverrides);
 
   // Debug logs: selected campaign and resolved schedule data
   console.log("SchedulerGrid - selectedCampaign:", selectedCampaign);
-  // Build a backend-shaped campaign object from current state
   const campaignIdNum =
-    Number(selectedCampaign.id) || fallbackData?.campaignId || 0;
-  const resolvedSchedules = buildSchedulesFromState(
-    fallbackData?.schedules,
-    campaignSchedule.weekTemplate,
-    campaignSchedule.dateOverrides,
-    campaignIdNum,
-    weekStart,
+    Number(selectedCampaignKey) || apiCampaignData?.campaignId || 0;
+  const saveSchedules = useMemo(
+    () =>
+      buildSchedulesFromState(
+        undefined,
+        campaignSchedule.weekTemplate,
+        campaignSchedule.dateOverrides,
+        campaignIdNum,
+        activeWeekStart,
+      ),
+    [
+      activeWeekStart,
+      campaignIdNum,
+      campaignSchedule.dateOverrides,
+      campaignSchedule.weekTemplate,
+    ],
   );
 
-  const resolvedBackendCampaign: BackendCampaign = {
-    campaignId: campaignIdNum,
-    name: selectedCampaign.name,
-    campaignType: fallbackData?.campaignType ?? "sponsoredProducts",
-    targetingType: fallbackData?.targetingType ?? "auto",
-    state: (selectedCampaign.status || "ACTIVE").toLowerCase(),
-    dailyBudget: fallbackData?.dailyBudget ?? 0,
-    startDate: fallbackData?.startDate ?? formatDateISO(new Date()),
-    endDate: fallbackData?.endDate ?? null,
-    premiumBidAdjustment: fallbackData?.premiumBidAdjustment ?? false,
-    bidding: fallbackData?.bidding ?? {
-      strategy: "autoForSales",
-      adjustments: [],
-    },
-    profileId: fallbackData?.profileId ?? 0,
-    lastSyncedAt: fallbackData?.lastSyncedAt ?? new Date().toISOString(),
-    schedules: resolvedSchedules,
+  const handleSyncNow = async () => {
+    setIsSyncing(true);
+
+    try {
+      await syncCampaignSchedulesNow();
+      toast.success("Campaign schedule sync started.");
+    } catch (error) {
+      console.error("SchedulerGrid - sync now failed:", error);
+      toast.error("Unable to start campaign schedule sync.");
+    } finally {
+      setIsSyncing(false);
+    }
   };
-
-  console.log(
-    "SchedulerGrid - resolvedBackendCampaign:",
-    resolvedBackendCampaign,
-  );
-
-  const selectedCampaignId = Number(selectedCampaign.id);
 
   useEffect(() => {
     const resolved = buildSchedulesFromState(
-      fallbackData?.schedules,
+      apiCampaignData?.schedules,
       campaignSchedule.weekTemplate,
       campaignSchedule.dateOverrides,
       campaignIdNum,
-      weekStart,
+      activeWeekStart,
     );
 
     console.log("SchedulerGrid - schedules changed:", resolved);
 
     const readable = resolved.map((s) => ({
-      scheduleDate: s.scheduleDate ? backendDateToISO(s.scheduleDate) : null,
-      timeSlots: s.timeSlots,
+      scheduleDate: getScheduleDate(s)
+        ? backendDateToISO(getScheduleDate(s))
+        : null,
+      timeSlots: getScheduleTimeSlots(s),
     }));
 
     console.log("SchedulerGrid - readable schedule map:", readable);
+    console.log("SchedulerGrid - backend slot mapping:", {
+      selectedCampaignId: selectedCampaignKey,
+      activeWeekStart,
+      firstBackendScheduleDate,
+      backendSchedules: apiCampaignData?.schedules.map((schedule) => ({
+        scheduleDate: getScheduleDate(schedule)
+          ? backendDateToISO(getScheduleDate(schedule))
+          : null,
+        rawTimeSlots: getScheduleTimeSlots(schedule),
+        normalizedTimeSlots: getScheduleTimeSlots(schedule).map(normalizeTimeSlot),
+        activeHours: timeSlotsToBooleanSchedule(getScheduleTimeSlots(schedule))
+          .map((active, hour) => (active ? hour : null))
+          .filter((hour): hour is number => hour !== null),
+      })),
+      activeWeekCells: days.map((day) => ({
+        day,
+        activeHours: (campaignSchedule.weekTemplate[day] ?? [])
+          .map((active, hour) => (active ? hour : null))
+          .filter((hour): hour is number => hour !== null),
+      })),
+      dateOverrideKeys: Object.keys(campaignSchedule.dateOverrides),
+    });
   }, [
-    JSON.stringify(campaignSchedule.weekTemplate),
-    JSON.stringify(campaignSchedule.dateOverrides),
-    weekStart,
+    campaignIdNum,
+    campaignSchedule.weekTemplate,
+    campaignSchedule.dateOverrides,
+    serializedWeekTemplate,
+    serializedDateOverrides,
+    apiCampaignData?.schedules,
+    activeWeekStart,
+    firstBackendScheduleDate,
+    selectedCampaignKey,
+  ]);
+
+  useEffect(() => {
+    if (!selectedCampaign || !campaignIdNum) {
+      setPendingScheduleSave(null);
+      return;
+    }
+
+    setPendingScheduleSave({
+      campaignId: campaignIdNum,
+      campaignName: selectedCampaign.name,
+      schedules: saveSchedules,
+    });
+  }, [
+    campaignIdNum,
+    saveSchedules,
+    selectedCampaign,
+    setPendingScheduleSave,
   ]);
 
   useEffect(() => {
@@ -364,26 +601,21 @@ export function SchedulerGrid() {
     es.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
+        const fetchedCampaigns = extractCampaignsFromSseMessage(msg);
 
-        if (msg.campaignId !== selectedCampaignId) {
-          return;
-        }
-
-        switch (msg.type) {
-          case "SCHEDULE_EXECUTING":
-            toast(`Campaign ${msg.campaignId} schedule is operating…`, {
-              icon: "⏳",
+        if (fetchedCampaigns.length > 0) {
+          setSyncedCampaigns((current) => {
+            const byId = new Map(current.map((campaign) => [campaign.id, campaign]));
+            fetchedCampaigns.forEach((campaign) => {
+              byId.set(campaign.id, campaign);
             });
-            break;
-          case "SCHEDULE_COMPLETED":
-            toast.success(`Campaign ${msg.campaignId} schedule completed.`);
-            break;
-          case "SCHEDULE_FAILED":
-            toast.error(`Campaign ${msg.campaignId} failed: ${msg.error}`);
-            break;
-          default:
-            break;
+            return Array.from(byId.values());
+          });
+
+          toast.success(`${fetchedCampaigns.length} campaign${fetchedCampaigns.length === 1 ? "" : "s"} fetched from sync.`);
+          refetchCampaigns();
         }
+
       } catch (error) {
         console.error("SchedulerGrid - invalid SSE payload", error);
       }
@@ -397,18 +629,20 @@ export function SchedulerGrid() {
     return () => {
       es.close();
     };
-  }, [selectedCampaignId]);
+  }, [refetchCampaigns]);
+
+  if (!selectedCampaign) return null;
 
   const weekTemplate = campaignSchedule.weekTemplate;
   const dateOverrides = campaignSchedule.dateOverrides || {};
-  const selectedOverride = dateOverrides[selectedDate];
-  const selectedWeekKey = getWeekDayKey(selectedDate);
+  const selectedOverride = dateOverrides[activeSelectedDate];
+  const selectedWeekKey = getWeekDayKey(activeSelectedDate);
   const inheritedSchedule =
     weekTemplate[selectedWeekKey] ?? createZeroSchedule();
   const activeDateSchedule = selectedOverride ?? inheritedSchedule;
   const isOverrideActive = Boolean(selectedOverride);
   const selectedDateLabel = new Date(
-    `${selectedDate}T00:00:00`,
+    `${activeSelectedDate}T00:00:00`,
   ).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -416,7 +650,13 @@ export function SchedulerGrid() {
   });
 
   const clearWeeklyTemplate = () => {
-    setWeekTemplate(selectedCampaign.id, createEmptyWeekTemplate());
+    const emptyTemplate = createEmptyWeekTemplate();
+    setWeekTemplate(selectedCampaign.id, emptyTemplate);
+
+    days.forEach((_, dayIndex) => {
+      const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
+      setDateOverride(selectedCampaign.id, dateISO, createZeroSchedule());
+    });
   };
 
   const toggleWeeklyCell = (dayIndex: number, hourIndex: number) => {
@@ -430,6 +670,10 @@ export function SchedulerGrid() {
     });
     try {
       const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
+      if (Object.hasOwn(dateOverrides, dateISO)) {
+        setDateOverride(selectedCampaign.id, dateISO, nextDay);
+      }
+
       const newActive = nextDay[hourIndex];
       console.log("SchedulerGrid - cell click (WEEK):", {
         date: dateISO,
@@ -454,6 +698,10 @@ export function SchedulerGrid() {
     });
     try {
       const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
+      if (Object.hasOwn(dateOverrides, dateISO)) {
+        setDateOverride(selectedCampaign.id, dateISO, nextDay);
+      }
+
       console.log("SchedulerGrid - toggle full day:", {
         date: dateISO,
         weekday: day,
@@ -468,11 +716,11 @@ export function SchedulerGrid() {
   const toggleDateHour = (hourIndex: number) => {
     const nextSchedule = [...activeDateSchedule];
     nextSchedule[hourIndex] = !nextSchedule[hourIndex];
-    setDateOverride(selectedCampaign.id, selectedDate, nextSchedule);
+    setDateOverride(selectedCampaign.id, activeSelectedDate, nextSchedule);
     try {
       const newActive = nextSchedule[hourIndex];
       console.log("SchedulerGrid - cell click (DATE):", {
-        date: selectedDate,
+        date: activeSelectedDate,
         hour: `${String(hourIndex).padStart(2, "0")}:00`,
         active: newActive,
         actionEnabled: Boolean(newActive),
@@ -484,7 +732,6 @@ export function SchedulerGrid() {
 
   return (
     <div className="space-y-6">
-      <Toaster position="top-right" />
       {/* Campaign Name Header */}
 
       <div className="grid gap-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
@@ -519,7 +766,7 @@ export function SchedulerGrid() {
 
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
-                    value={weekStart}
+                    value={activeWeekStart}
                     min={defaultDate}
                     onChange={(val: string) => {
                       const picked = new Date(`${val}T00:00:00`);
@@ -541,23 +788,31 @@ export function SchedulerGrid() {
                     className="w-full justify-start text-left font-normal"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? (
-                      format(selectedDate, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
+                    {format(activeSelectedDate, "PPP")}
                   </Button>
                 </PopoverTrigger>
 
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
-                    value={selectedDate}
+                    value={activeSelectedDate}
                     min={defaultDate}
                     onChange={setSelectedDate}
                   />
                 </PopoverContent>
               </Popover>
             )}
+
+            <Button
+              variant="outline"
+              onClick={handleSyncNow}
+              disabled={isSyncing}
+              className="w-full sm:w-auto"
+            >
+              <RefreshCw
+                className={cn("mr-2 h-4 w-4", isSyncing && "animate-spin")}
+              />
+              {isSyncing ? "Syncing" : "Sync Now"}
+            </Button>
           </div>
         </div>
 
@@ -579,7 +834,7 @@ export function SchedulerGrid() {
                   variant="outline"
                   size="sm"
                   onClick={() =>
-                    deleteDateOverride(selectedCampaign.id, selectedDate)
+                    deleteDateOverride(selectedCampaign.id, activeSelectedDate)
                   }
                 >
                   Reset to Weekly Template
@@ -589,6 +844,45 @@ export function SchedulerGrid() {
           </div>
         )}
       </div>
+
+      {syncedCampaigns.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Fetched campaigns
+            </h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Latest campaigns received from the sync event.
+            </p>
+          </div>
+
+          <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+            {syncedCampaigns.map((campaign) => (
+              <div
+                key={campaign.id}
+                className="grid gap-2 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center"
+              >
+                <div>
+                  <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                    {campaign.name}
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                    ID: {campaign.id}
+                  </div>
+                </div>
+                <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
+                  {campaign.state}
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {campaign.scheduleCount === null
+                    ? "Schedules: unknown"
+                    : `Schedules: ${campaign.scheduleCount}`}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-xl border bg-white dark:bg-zinc-900 dark:border-zinc-800 animate-in fade-in slide-in-from-bottom-2 duration-500">
         <div className="min-w-200">
@@ -639,9 +933,24 @@ export function SchedulerGrid() {
                     });
                     setWeekTemplate(selectedCampaign.id, updated);
                     try {
-                      const affectedDates = days.map((_, di) =>
-                        formatDateISO(addDays(weekStartDate, di)),
-                      );
+                      const affectedDates = days.map((day, di) => {
+                        const dateISO = formatDateISO(
+                          addDays(weekStartDate, di),
+                        );
+
+                        if (Object.hasOwn(dateOverrides, dateISO)) {
+                          const row = [
+                            ...(dateOverrides[dateISO] ??
+                              updated[day] ??
+                              createZeroSchedule()),
+                          ];
+                          row[hIndex] = !isAllWeekActive;
+                          setDateOverride(selectedCampaign.id, dateISO, row);
+                        }
+
+                        return dateISO;
+                      });
+
                       console.log("SchedulerGrid - toggle all-week hour:", {
                         hour: `${String(hIndex).padStart(2, "0")}:00`,
                         newActive: !isAllWeekActive,
