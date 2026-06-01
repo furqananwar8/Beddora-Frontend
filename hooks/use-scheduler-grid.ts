@@ -10,7 +10,10 @@ import type {
   DateOverrides,
 } from "@/lib/context/dashboard-context";
 import useCampaigns from "@/hooks/useCampaigns";
-import { syncCampaignSchedulesNow } from "@/api/services/campaigns.api";
+import {
+  syncCampaignSchedulesNow,
+  updateCampaignSchedule,
+} from "@/api/services/campaigns.api";
 import type { SyncedCampaign } from "@/components/dashboard/scheduler/synced-campaigns-list";
 import {
   SCHEDULER_DAYS,
@@ -257,7 +260,7 @@ export function useSchedulerGrid() {
 
     try {
       await syncCampaignSchedulesNow();
-      toast.success("Campaign schedule sync started.");
+      // toast.success("Campaign schedule sync started.");
       console.log("syncProgressItems", syncProgressItems);
     } catch (error) {
       console.error("SchedulerGrid - sync now failed:", error);
@@ -265,16 +268,72 @@ export function useSchedulerGrid() {
     }
   };
 
+  const handleScheduleTest = async () => {
+    if (!selectedCampaign) {
+      toast.error("Select a campaign before creating a test schedule.");
+      return;
+    }
+
+    const campaignIdNum = Number(selectedCampaign.id);
+    if (!campaignIdNum) {
+      toast.error("Invalid campaign selected.");
+      return;
+    }
+
+    const start = new Date(Date.now() + 60 * 1000);
+    const end = new Date(start.getTime() + 60 * 1000);
+    const scheduleDate = format(start, "yyyyMMdd");
+    const startTime = format(start, "HH:mm");
+    const endTime = format(end, "HH:mm");
+
+    const schedule = {
+      id: campaignIdNum,
+      campaignId: campaignIdNum,
+      scheduleDate,
+      endDate: null,
+      timeSlots: [{ startTime, endTime }],
+      timezone: "EST",
+      action: "PAUSE",
+      bidAdjustment: null,
+      status: "DRAFT",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      await updateCampaignSchedule(campaignIdNum, { schedules: [schedule] });
+      toast.success(
+        `Test schedule created for ${selectedCampaign.name} at ${startTime}.`, 
+      );
+    } catch (error) {
+      console.error("SchedulerGrid - test schedule failed:", error);
+      toast.error("Unable to create test schedule.");
+    }
+  };
+
   useEffect(() => {
     if (!syncModalOpen || syncCompleted) return;
     if (syncLastEventAtMs === null) return;
 
-    const completionWindowMs = 4500;
+    const completionWindowMs = 12000;
+
+    console.log(
+      "SchedulerGrid - completion timer check",
+      {
+        syncModalOpen,
+        syncCompleted,
+        syncLastEventAtMs,
+        lastDeltaMs: Date.now() - syncLastEventAtMs,
+        syncProgressItemsLength: syncProgressItems.length,
+      },
+    );
 
     const t = window.setTimeout(() => {
+      if (syncCompleted) return;
       if (Date.now() - syncLastEventAtMs < completionWindowMs) return;
       if (syncProgressItems.length === 0) return;
 
+      console.log("SchedulerGrid - completion window reached without done event; marking complete as fallback");
       setSyncCompleted(true);
       setIsSyncing(false);
 
@@ -401,6 +460,17 @@ export function useSchedulerGrid() {
 
         console.log("SchedulerGrid - campaigns after fallback handling:", fetchedCampaigns);
 
+        const doneEvent =
+          msg.done === true ||
+          (typeof msg.data === "object" && msg.data !== null && msg.data.done === true);
+        if (doneEvent) {
+          console.log("SchedulerGrid - done event received; marking sync complete", msg);
+          setSyncCompleted(true);
+          setIsSyncing(false);
+          queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+          refetchCampaigns();
+        }
+
         if (fetchedCampaigns.length === 0) {
           console.log("SchedulerGrid - nothing to process after all handlers");
           return;
@@ -520,14 +590,26 @@ export function useSchedulerGrid() {
 
     const day = SCHEDULER_DAYS[dayIndex];
     const currentDay = weekTemplate[day] ?? createZeroSchedule();
-    const isAllActive = currentDay.every(Boolean);
-    const nextDay = Array(24).fill(!isAllActive);
+    const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
+
+    // Check which hours are not disabled (past)
+    const enabledHours = Array.from({ length: 24 }, (_, i) => !isPastHour(dateISO, i));
+
+    // Determine if all enabled hours are active
+    const isAllEnabledActive = enabledHours.every(
+      (isEnabled, i) => !isEnabled || currentDay[i]
+    );
+
+    // Toggle only enabled hours, keep past hours as they are
+    const nextDay = currentDay.map((isActive, i) =>
+      enabledHours[i] ? !isAllEnabledActive : isActive
+    );
+
     setWeekTemplate(selectedCampaign.id, activeWeekStart, {
       ...weekTemplate,
       [day]: nextDay,
     });
 
-    const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
     if (Object.hasOwn(dateOverrides, dateISO)) {
       setDateOverride(selectedCampaign.id, activeWeekStart, dateISO, nextDay);
     }
@@ -598,6 +680,7 @@ export function useSchedulerGrid() {
     toggleWeeklyCell,
     toggleFullDay,
     toggleDateHour,
+    handleScheduleTest,
     setWeekTemplate,
     setDateOverride,
     isPastHour,

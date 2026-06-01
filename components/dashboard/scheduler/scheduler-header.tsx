@@ -18,6 +18,7 @@ type SchedulerHeaderProps = {
   activeSelectedDate: string;
   setSelectedDate: (date: string) => void;
   handleSyncNow: () => Promise<void>;
+  handleScheduleTest: () => Promise<void>;
   isSyncing: boolean;
 };
 
@@ -31,6 +32,7 @@ export function SchedulerHeader({
   activeSelectedDate,
   setSelectedDate,
   handleSyncNow,
+  handleScheduleTest,
   isSyncing,
 }: SchedulerHeaderProps) {
   return (
@@ -111,6 +113,13 @@ export function SchedulerHeader({
             className={cn("mr-2 h-4 w-4", isSyncing && "animate-spin")}
           />
           {isSyncing ? "Syncing" : "Sync Now"}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleScheduleTest}
+          className="w-full sm:w-auto"
+        >
+          Schedule +1m
         </Button>
       </div>
     </div>

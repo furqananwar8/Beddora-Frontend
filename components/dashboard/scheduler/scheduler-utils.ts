@@ -218,12 +218,12 @@ export function buildSchedulesFromState(
       const iso = formatDateISO(addDays(base, di));
       if (Object.hasOwn(dateOverrides, iso)) return;
       result.push({
-        id: -1,
+        id: campaignIdNum,
         campaignId: campaignIdNum,
         scheduleDate: isoToBackendDate(iso),
         endDate: null,
         timeSlots: booleanScheduleToTimeSlots(daySchedule),
-        timezone: "UTC",
+        timezone: "EST",
         action: "PAUSE",
         bidAdjustment: null,
         status: "DRAFT",
@@ -240,12 +240,12 @@ export function buildSchedulesFromState(
     });
     if (unionSchedule.some(Boolean)) {
       result.push({
-        id: -1,
+        id: campaignIdNum,
         campaignId: campaignIdNum,
         scheduleDate: null,
         endDate: null,
         timeSlots: booleanScheduleToTimeSlots(unionSchedule),
-        timezone: "UTC",
+        timezone: "EST",
         action: "PAUSE",
         bidAdjustment: null,
         status: "DRAFT",
@@ -259,12 +259,12 @@ export function buildSchedulesFromState(
     const bools = dateOverrides[iso];
     if (!bools || !bools.some(Boolean)) return;
     result.push({
-      id: -Date.now(),
+      id: campaignIdNum,
       campaignId: campaignIdNum,
       scheduleDate: isoToBackendDate(iso),
       endDate: null,
       timeSlots: booleanScheduleToTimeSlots(bools),
-      timezone: "UTC",
+      timezone: "EST",
       action: "PAUSE",
       bidAdjustment: null,
       status: "DRAFT",

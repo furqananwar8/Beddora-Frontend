@@ -1,6 +1,4 @@
 "use client";
-import { EventSourcePolyfill } from "event-source-polyfill";
-
 import { ReactNode, useEffect, useState } from "react";
 import {
   Calendar,
@@ -21,6 +19,14 @@ import {
 import { useCampaigns } from "@/hooks/useCampaigns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const navigation = [
   // { name: 'Dashboard', icon: LayoutDashboard, href: '#', current: false },
@@ -50,50 +56,89 @@ function DashboardLayoutContent({
   const [operatingCampaignId, setOperatingCampaignId] = useState<string | null>(
     null,
   );
+  const [executingModalOpen, setExecutingModalOpen] = useState(false);
+  const [executingCampaignName, setExecutingCampaignName] = useState<
+    string | null
+  >(null);
   const selectedCampaignId = selectedCampaign?.id ?? null;
 
-  useEffect(() => {
-    if (!selectedCampaignId) return;
+  // useEffect(() => {
+  //   if (!selectedCampaignId) return;
 
-    const es = new EventSource(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/campaign-schedules/events`,
-      { withCredentials: true } // only if you need cookies
-    );
+  //   const es = new EventSource(
+  //     `${process.env.NEXT_PUBLIC_API_BASE_URL}/campaign-schedules/events`,
+  //     { withCredentials: true } // only if you need cookies
+  //   );
 
-    es.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        const eventCampaignId =
-          msg.campaignId === undefined ? null : String(msg.campaignId);
+  //   es.onmessage = (event) => {
+  //     try {
+  //       const msg = JSON.parse(event.data);
+  //       const eventCampaignId =
+  //         msg.campaignId === undefined ? null : String(msg.campaignId);
 
-        if (eventCampaignId !== selectedCampaignId) return;
+  //       if (eventCampaignId !== selectedCampaignId) return;
 
-        switch (msg.type) {
-          case "SCHEDULE_EXECUTING":
-            setOperatingCampaignId(eventCampaignId);
-            toast(`Campaign ${msg.campaignId} schedule is operating...`);
-            break;
-          case "SCHEDULE_COMPLETED":
-            setOperatingCampaignId(null);
-            toast.success(`Campaign ${msg.campaignId} schedule completed.`);
-            break;
-          case "SCHEDULE_FAILED":
-            setOperatingCampaignId(null);
-            toast.error(`Campaign ${msg.campaignId} failed: ${msg.error}`);
-            break;
-        }
-      } catch (error) {
-        console.error("Invalid SSE payload", error);
-      }
-    };
+  //       switch (msg.type) {
+  //         case "SCHEDULE_EXECUTING":
+  //           setOperatingCampaignId(eventCampaignId);
+  //           setExecutingCampaignName(
+  //             selectedCampaign?.name ?? `Campaign ${msg.campaignId}`
+  //           );
+  //           setExecutingModalOpen(true);
+  //           toast(`Campaign ${msg.campaignId} schedule is operating...`);
+  //           break;
+  //         case "SCHEDULE_COMPLETED":
+  //           setExecutingModalOpen(false);
+  //           setExecutingCampaignName(null);
+  //           setOperatingCampaignId(null);
+  //           toast.success(`Campaign ${msg.campaignId} schedule completed.`);
+  //           break;
+  //         case "SCHEDULE_FAILED":
+  //           setExecutingModalOpen(false);
+  //           setExecutingCampaignName(null);
+  //           setOperatingCampaignId(null);
+  //           toast.error(`Campaign ${msg.campaignId} failed: ${msg.error}`);
+  //           break;
+  //       }
+  //     } catch (error) {
+  //       console.error("Invalid SSE payload", error);
+  //     }
+  //   };
 
-    es.onerror = () => {
-      // Browser auto-reconnects every ~3s
-    };
+  //   es.onerror = () => {
+  //     // Browser auto-reconnects every ~3s
+  //   };
 
-    return () => es.close();
-  }, [selectedCampaignId]);
+  //   return () => es.close();
+  // }, [selectedCampaignId]);
 
+  // useEffect(() => {
+  //   const es = new EventSource(
+  //     `${process.env.NEXT_PUBLIC_API_BASE_URL}/campaign-schedules/events`,
+  //     { withCredentials: true },
+  //   );
+
+  //   es.onopen = () => {
+  //     console.log("SSE connected");
+  //   };
+
+  //   es.onmessage = (event) => {
+  //     console.log("RAW EVENT:", event.data);
+
+  //     try {
+  //       const msg = JSON.parse(event.data);
+  //       console.log("PARSED:", msg);
+  //     } catch (e) {
+  //       console.error(e);
+  //     }
+  //   };
+
+  //   es.onerror = (err) => {
+  //     console.log("SSE error", err);
+  //   };
+
+  //   return () => es.close();
+  // }, []);
   return (
     <div className="flex h-screen bg-[#F8FAFC] dark:bg-zinc-950">
       {/* Primary Sidebar (Navigation) */}
@@ -240,6 +285,33 @@ function DashboardLayoutContent({
           Save
         </Button>
       </div>
+
+      <Dialog
+        open={executingModalOpen}
+        onOpenChange={(open) => {
+          setExecutingModalOpen(open);
+          if (!open) setExecutingCampaignName(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Campaign Executing on Amazon</DialogTitle>
+            <DialogDescription>
+              {executingCampaignName ? (
+                <>
+                  The campaign "{executingCampaignName}" is currently executing
+                  on Amazon.
+                </>
+              ) : (
+                <>A scheduled campaign is currently executing on Amazon.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setExecutingModalOpen(false)}>Okay</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

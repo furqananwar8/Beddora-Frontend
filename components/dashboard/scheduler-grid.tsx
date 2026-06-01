@@ -42,6 +42,7 @@ export function SchedulerGrid() {
     previousScheduledDate,
     nextScheduledDate,
     handleSyncNow,
+    handleScheduleTest,
     navigateToPreviousScheduledWeek,
     navigateToNextScheduledWeek,
     navigateToPreviousScheduledDate,
@@ -78,11 +79,12 @@ export function SchedulerGrid() {
           activeSelectedDate={activeSelectedDate}
           setSelectedDate={setSelectedDate}
           handleSyncNow={handleSyncNow}
+          handleScheduleTest={handleScheduleTest}
           isSyncing={isSyncing}
         />
       </div>
 
-      <SyncedCampaignsList campaigns={syncedCampaigns} />
+      {/* <SyncedCampaignsList campaigns={syncedCampaigns} /> */}
 
       <div className="overflow-x-auto rounded-xl border bg-white dark:bg-zinc-900 dark:border-zinc-800 animate-in fade-in slide-in-from-bottom-2 duration-500">
         <div className="min-w-200">
@@ -97,6 +99,7 @@ export function SchedulerGrid() {
             setDateOverride={setDateOverride}
             campaignId={selectedCampaign.id}
             weekStartDate={weekStartDate}
+            isPastHour={isPastHour}
           />
 
           {mode === "WEEK" ? (
