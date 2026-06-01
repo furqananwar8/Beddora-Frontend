@@ -13,7 +13,7 @@ export default function LoginPage() {
   const handleLoginWithAmazon = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}auth/amazon/login`, {
+      const res = await fetch(`${BASE_URL}/auth/amazon/login`, {
         credentials: "include", // ← critical: sends/receives sid cookie
       });
       if (!res.ok) {

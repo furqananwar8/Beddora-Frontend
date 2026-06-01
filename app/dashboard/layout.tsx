@@ -1,4 +1,5 @@
 "use client";
+import { EventSourcePolyfill } from "event-source-polyfill";
 
 import { ReactNode, useEffect, useState } from "react";
 import {
@@ -54,9 +55,19 @@ function DashboardLayoutContent({
   useEffect(() => {
     if (!selectedCampaignId) return;
 
-    const es = new EventSource(`${process.env.NEXT_PUBLIC_API_BASE_URL}/campaign-schedules/events`);
+    // const es = new EventSource(
+    //   `${process.env.NEXT_PUBLIC_API_BASE_URL}/campaign-schedules/events`,
+    // );
+    const es = new EventSourcePolyfill(
+      "https://obeyable-isothermally-kelly.ngrok-free.dev/api/v1/campaign-schedules/events",
 
-    es.onmessage = (event) => {
+      {
+        headers: { "ngrok-skip-browser-warning": "1" },
+
+        withCredentials: true,
+      },
+    );
+    es.onmessage = (event:any) => {
       try {
         const msg = JSON.parse(event.data);
         const eventCampaignId =
@@ -237,11 +248,10 @@ function DashboardLayoutContent({
 
       {/* Floating Action Button (Save) */}
       <div className="fixed bottom-8 right-8">
-        
-          <Button className="bg-indigo-600 text-white" onClick={handleSave}>
-            <Save />
-            Save
-          </Button>
+        <Button className="bg-indigo-600 text-white" onClick={handleSave}>
+          <Save />
+          Save
+        </Button>
       </div>
     </div>
   );
