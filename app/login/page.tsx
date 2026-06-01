@@ -5,30 +5,31 @@ import { Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { toast } from "sonner";
-// import { AmazonIcon } from "@/components/icons/amazon"
 
 export default function LoginPage() {
-  const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
   const [loading, setLoading] = useState(false);
+
   const handleLoginWithAmazon = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/auth/amazon/login`, {
-        credentials: "include", // ← critical: sends/receives sid cookie
+      const res = await fetch('/api/auth/amazon/login', {
+        credentials: 'include', // sends localhost cookie if present
       });
+
       if (!res.ok) {
         throw new Error(`Failed to initiate login: ${res.status}`);
       }
+
       const { url } = await res.json();
+
       window.location.href = url; // navigate to Amazon
     } catch (err) {
-      console.log("Login initiation failed:", err);
-
       toast.error("Failed to start login. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4">
       <div className="w-full max-w-md space-y-8 rounded-2xl bg-white dark:bg-zinc-900 p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
@@ -39,7 +40,6 @@ export default function LoginPage() {
               alt="Beddora"
               width={300}
               height={300}
-              className=""
             />
             <p>Campaign Managment Tool</p>
           </div>
@@ -61,44 +61,7 @@ export default function LoginPage() {
             <AmazonIcon />
             Continue with Amazon
           </Button>
-
-          {/* <div className="relative mt-6">
-            <div className="absolute inset-0 flex items-center" aria-hidden="true">
-              <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
-            </div>
-            <div className="relative flex justify-center text-sm font-medium leading-6">
-              <span className="bg-white dark:bg-zinc-900 px-4 text-zinc-400">
-                Or continue with
-              </span>
-            </div>
-          </div>
-
-          <Button
-            variant="outline"
-            size="lg"
-            className="w-full h-12 rounded-xl border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all active:scale-95"
-          >
-            Email address
-          </Button> */}
         </div>
-
-        {/* <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-          By signing in, you agree to our{" "}
-          <a
-            href="#"
-            className="font-semibold text-zinc-900 dark:text-zinc-50 hover:underline"
-          >
-            Terms of Service
-          </a>{" "}
-          and{" "}
-          <a
-            href="#"
-            className="font-semibold text-zinc-900 dark:text-zinc-50 hover:underline"
-          >
-            Privacy Policy
-          </a>
-          .
-        </p> */}
       </div>
     </div>
   );

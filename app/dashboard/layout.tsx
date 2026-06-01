@@ -55,27 +55,18 @@ function DashboardLayoutContent({
   useEffect(() => {
     if (!selectedCampaignId) return;
 
-    // const es = new EventSource(
-    //   `${process.env.NEXT_PUBLIC_API_BASE_URL}/campaign-schedules/events`,
-    // );
-    const es = new EventSourcePolyfill(
-      "https://obeyable-isothermally-kelly.ngrok-free.dev/api/v1/campaign-schedules/events",
-
-      {
-        headers: { "ngrok-skip-browser-warning": "1" },
-
-        withCredentials: true,
-      },
+    const es = new EventSource(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/campaign-schedules/events`,
+      { withCredentials: true } // only if you need cookies
     );
-    es.onmessage = (event:any) => {
+
+    es.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
         const eventCampaignId =
           msg.campaignId === undefined ? null : String(msg.campaignId);
 
-        if (eventCampaignId !== selectedCampaignId) {
-          return;
-        }
+        if (eventCampaignId !== selectedCampaignId) return;
 
         switch (msg.type) {
           case "SCHEDULE_EXECUTING":
@@ -90,21 +81,17 @@ function DashboardLayoutContent({
             setOperatingCampaignId(null);
             toast.error(`Campaign ${msg.campaignId} failed: ${msg.error}`);
             break;
-          default:
-            break;
         }
       } catch (error) {
-        console.error("DashboardLayout - invalid SSE payload", error);
+        console.error("Invalid SSE payload", error);
       }
     };
 
     es.onerror = () => {
-      // Browser auto-reconnects every ~3s by default.
+      // Browser auto-reconnects every ~3s
     };
 
-    return () => {
-      es.close();
-    };
+    return () => es.close();
   }, [selectedCampaignId]);
 
   return (
