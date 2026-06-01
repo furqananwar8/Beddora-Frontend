@@ -1,16 +1,14 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  format,
-  startOfWeek,
-  endOfWeek,
-  addDays,
-} from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { toast } from "sonner";
 import { useDashboard } from "@/lib/context/dashboard-context";
-import type { WeekTemplate, DateOverrides } from "@/lib/context/dashboard-context";
+import type {
+  WeekTemplate,
+  DateOverrides,
+} from "@/lib/context/dashboard-context";
 import useCampaigns from "@/hooks/useCampaigns";
 import { syncCampaignSchedulesNow } from "@/api/services/campaigns.api";
 import type { SyncedCampaign } from "@/components/dashboard/scheduler/synced-campaigns-list";
@@ -54,6 +52,8 @@ export function useSchedulerGrid() {
   );
   const [syncCompleted, setSyncCompleted] = useState(false);
 
+  const campaignsDataRef = useRef<any>(null);
+
   const tomorrow = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() + 1);
@@ -70,6 +70,19 @@ export function useSchedulerGrid() {
   const [weekStart, setWeekStart] = useState<string | null>(null);
   const campaignsQuery = useCampaigns({ page: 1, limit: 20 });
   const { refetch: refetchCampaigns } = campaignsQuery;
+
+  // Keep campaigns data in ref for use in SSE handler
+  useEffect(() => {
+    campaignsDataRef.current = campaignsQuery.data?.data ?? null;
+    console.log(
+      "SchedulerGrid - updated campaigns ref:",
+      campaignsDataRef.current?.map((campaign: any) => ({
+        id: campaign.id,
+        campaignId: campaign.campaignId,
+        name: campaign.name,
+      })) ?? null,
+    );
+  }, [campaignsQuery.data?.data]);
 
   const selectedCampaignKey = selectedCampaign?.id ?? "";
   const apiCampaignData = selectedCampaign
@@ -195,7 +208,8 @@ export function useSchedulerGrid() {
 
   const campaignSchedule = useMemo(() => {
     const campaignDraft = campaignSchedules[selectedCampaignKey];
-    const draft = (campaignDraft?.weeks?.[activeWeekStart] as WeeklyDraft) ?? {};
+    const draft =
+      (campaignDraft?.weeks?.[activeWeekStart] as WeeklyDraft) ?? {};
 
     return {
       weekTemplate: {
@@ -207,7 +221,12 @@ export function useSchedulerGrid() {
         ...(draft.dateOverrides ?? {}),
       },
     };
-  }, [activeWeekStart, backendSchedule, campaignSchedules, selectedCampaignKey]);
+  }, [
+    activeWeekStart,
+    backendSchedule,
+    campaignSchedules,
+    selectedCampaignKey,
+  ]);
 
   const campaignIdNum =
     Number(selectedCampaignKey) || apiCampaignData?.campaignId || 0;
@@ -239,6 +258,7 @@ export function useSchedulerGrid() {
     try {
       await syncCampaignSchedulesNow();
       toast.success("Campaign schedule sync started.");
+      console.log("syncProgressItems", syncProgressItems);
     } catch (error) {
       console.error("SchedulerGrid - sync now failed:", error);
       toast.error("Unable to start campaign schedule sync.");
@@ -299,70 +319,151 @@ export function useSchedulerGrid() {
   // Pending schedule save is managed at the DashboardProvider level now.
 
   useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    if (!apiUrl) {
+      console.error("SchedulerGrid - NEXT_PUBLIC_API_BASE_URL is not set");
+      return;
+    }
+
     const es = new EventSource(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/campaign-schedules/events`,
+      `${apiUrl}/campaign-schedules/events`,
     );
+
+    console.log("SchedulerGrid - EventSource connecting to:", `${apiUrl}/campaign-schedules/events`);
+
+    es.onopen = () => {
+      console.log("SchedulerGrid - EventSource connected");
+    };
 
     es.onmessage = (event) => {
       try {
+        console.log("SchedulerGrid - SSE raw message:", event.data);
         const msg = JSON.parse(event.data);
-        const fetchedCampaigns = extractCampaignsFromSseMessage(msg);
+        console.log("SchedulerGrid - SSE parsed message:", msg);
 
-        if (fetchedCampaigns.length > 0) {
-          setSyncedCampaigns((current) => {
-            const byId = new Map(
-              current.map((campaign) => [campaign.id, campaign]),
+        let fetchedCampaigns = extractCampaignsFromSseMessage(msg);
+        console.log("SchedulerGrid - campaigns extracted by helper:", fetchedCampaigns);
+
+        if (fetchedCampaigns.length === 0) {
+          console.log("SchedulerGrid - no campaigns extracted from SSE helper");
+
+          if (msg.type === "SCHEDULE_COMPLETED" && msg.campaignId) {
+            const campaignId = String(msg.campaignId);
+            console.log("SchedulerGrid - handling SCHEDULE_COMPLETED, campaignId:", campaignId);
+            console.log("SchedulerGrid - campaignsDataRef.current:", campaignsDataRef.current);
+            console.log(
+              "SchedulerGrid - campaign ids in ref:",
+              campaignsDataRef.current?.map((c: any) => String(c.campaignId ?? c.id)) ?? [],
             );
 
-            fetchedCampaigns.forEach((campaign) => {
-              byId.set(campaign.id, campaign);
-            });
-
-            return Array.from(byId.values());
-          });
-
-          setSyncProgressItems((current) => {
-            const byId = new Map(
-              current.map((campaign) => [campaign.id, campaign]),
+            const campaignData = campaignsDataRef.current?.find(
+              (c: any) => String(c.campaignId) === campaignId || String(c.id) === campaignId,
             );
 
-            const beforeSize = byId.size;
+            console.log("SchedulerGrid - found campaign data:", campaignData);
 
-            fetchedCampaigns.forEach((campaign) => {
-              byId.set(campaign.id, campaign);
-            });
-
-            const updated = Array.from(byId.values());
-
-            if (byId.size !== beforeSize) {
-              setSyncLastEventAtMs(Date.now());
-            }
-
-            return updated;
-          });
-
-          setSyncModalOpen((open) => {
-            if (!open) {
-              toast.success(
-                `${fetchedCampaigns.length} campaign${
-                  fetchedCampaigns.length === 1 ? "" : "s"
-                } fetched from sync.`,
+            if (campaignData) {
+              fetchedCampaigns = [
+                {
+                  id: campaignId,
+                  name: campaignData.name,
+                  state: campaignData.state,
+                  scheduleCount: null,
+                },
+              ];
+              console.log(
+                "SchedulerGrid - created campaign from SCHEDULE_COMPLETED:",
+                fetchedCampaigns,
+              );
+            } else {
+              console.warn(
+                "SchedulerGrid - campaign not found in campaigns list for ID:",
+                campaignId,
+                "— using fallback name",
+              );
+              fetchedCampaigns = [
+                {
+                  id: campaignId,
+                  name: `Campaign ${campaignId}`,
+                  state: "unknown",
+                  scheduleCount: null,
+                },
+              ];
+              console.log(
+                "SchedulerGrid - fallback campaign created:",
+                fetchedCampaigns,
               );
             }
-            return open;
-          });
+          } else {
+            console.log("SchedulerGrid - SSE message type not handled or missing campaignId:", msg.type, msg.campaignId);
+          }
         }
+
+        console.log("SchedulerGrid - campaigns after fallback handling:", fetchedCampaigns);
+
+        if (fetchedCampaigns.length === 0) {
+          console.log("SchedulerGrid - nothing to process after all handlers");
+          return;
+        }
+
+        setSyncedCampaigns((current) => {
+          console.log("SchedulerGrid - current syncedCampaigns before update:", current);
+          const byId = new Map(
+            current.map((campaign) => [campaign.id, campaign]),
+          );
+
+          fetchedCampaigns.forEach((campaign) => {
+            byId.set(campaign.id, campaign);
+          });
+
+          const updated = Array.from(byId.values());
+          console.log("SchedulerGrid - updated syncedCampaigns:", updated);
+          return updated;
+        });
+
+        setSyncProgressItems((current) => {
+          console.log("SchedulerGrid - current syncProgressItems before update:", current);
+          const byId = new Map(
+            current.map((campaign) => [campaign.id, campaign]),
+          );
+
+          fetchedCampaigns.forEach((campaign) => {
+            byId.set(campaign.id, campaign);
+          });
+
+          const updated = Array.from(byId.values());
+          console.log("SchedulerGrid - updated syncProgressItems:", updated);
+          setSyncLastEventAtMs(Date.now());
+          return updated;
+        });
+
+        setSyncModalOpen((open) => {
+          console.log("SchedulerGrid - sync modal currently open:", open);
+          if (!open) {
+            toast.success(
+              `${fetchedCampaigns.length} campaign${
+                fetchedCampaigns.length === 1 ? "" : "s"
+              } fetched from sync.`,
+            );
+          }
+          return open;
+        });
       } catch (error) {
         console.error("SchedulerGrid - invalid SSE payload", error);
       }
     };
 
-    es.onerror = () => {
-      // Browser auto-reconnects by default.
+    es.onerror = (error) => {
+      console.error("SchedulerGrid - EventSource error:", error);
+      console.log("SchedulerGrid - EventSource readyState:", es.readyState);
     };
 
-    return () => es.close();
+    return () => {
+      console.log("SchedulerGrid - closing EventSource");
+      es.close();
+    };
   }, []);
+
 
   const weekTemplate = campaignSchedule.weekTemplate;
   const dateOverrides = campaignSchedule.dateOverrides || {};
@@ -410,12 +511,7 @@ export function useSchedulerGrid() {
 
     const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
     if (Object.hasOwn(dateOverrides, dateISO)) {
-      setDateOverride(
-        selectedCampaign.id,
-        activeWeekStart,
-        dateISO,
-        nextDay,
-      );
+      setDateOverride(selectedCampaign.id, activeWeekStart, dateISO, nextDay);
     }
   };
 
@@ -433,12 +529,7 @@ export function useSchedulerGrid() {
 
     const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
     if (Object.hasOwn(dateOverrides, dateISO)) {
-      setDateOverride(
-        selectedCampaign.id,
-        activeWeekStart,
-        dateISO,
-        nextDay,
-      );
+      setDateOverride(selectedCampaign.id, activeWeekStart, dateISO, nextDay);
     }
   };
 
