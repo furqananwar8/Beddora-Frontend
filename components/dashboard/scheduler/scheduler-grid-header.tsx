@@ -11,9 +11,18 @@ type SchedulerGridHeaderProps = {
   hours: string[];
   days: DayKey[];
   weekTemplate: WeekTemplate;
-  setWeekTemplate: (campaignId: string, weekTemplate: WeekTemplate) => void;
+  setWeekTemplate: (
+    campaignId: string,
+    weekStart: string,
+    weekTemplate: WeekTemplate,
+  ) => void;
   dateOverrides: DateOverrides;
-  setDateOverride: (campaignId: string, date: string, schedule: boolean[]) => void;
+  setDateOverride: (
+    campaignId: string,
+    weekStart: string,
+    date: string,
+    schedule: boolean[],
+  ) => void;
   campaignId: string;
   weekStartDate: Date;
 };
@@ -72,7 +81,7 @@ export function SchedulerGridHeader({
         ))}
       </div>
 
-      {mode === "WEEK" && (
+      {/* {mode === "WEEK" && (
         <div className="grid grid-cols-[80px_repeat(24,1fr)] border-b dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/20">
           <div className="flex items-center justify-center border-r p-2 text-[10px] font-black text-zinc-400 dark:border-zinc-800 uppercase tracking-wider">
             All Week
@@ -89,26 +98,20 @@ export function SchedulerGridHeader({
                 row[hIndex] = !isAllWeekActive;
                 updated[day] = row;
               });
-              setWeekTemplate(campaignId, updated);
-              try {
-                const affectedDates = days.map((day, di) => {
-                  const dateISO = formatDateISO(addDays(weekStartDate, di));
+                const weekStart = formatDateISO(weekStartDate);
+                setWeekTemplate(campaignId, weekStart, updated);
+                try {
+                  const affectedDates = days.map((day, di) => {
+                    const dateISO = formatDateISO(addDays(weekStartDate, di));
 
-                  if (Object.hasOwn(dateOverrides, dateISO)) {
-                    const row = [
-                      ...(dateOverrides[dateISO] ??
-                        updated[day] ??
-                        createZeroSchedule()),
-                    ];
-                    row[hIndex] = !isAllWeekActive;
-                    setDateOverride(campaignId, dateISO, row);
-                  }
-
-                  return dateISO;
-                });
-
-                console.log("SchedulerGrid - toggle all-week hour:", {
-                  hour: `${String(hIndex).padStart(2, "0")}:00`,
+                    if (Object.hasOwn(dateOverrides, dateISO)) {
+                      const row = [
+                        ...(dateOverrides[dateISO] ??
+                          updated[day] ??
+                          createZeroSchedule()),
+                      ];
+                      row[hIndex] = !isAllWeekActive;
+                      setDateOverride(campaignId, weekStart, dateISO, row);
                   newActive: !isAllWeekActive,
                   affectedDates,
                   actionEnabled: !isAllWeekActive,
@@ -133,7 +136,77 @@ export function SchedulerGridHeader({
             );
           })}
         </div>
-      )}
+      )} */}
+
+      {mode === "WEEK" && (
+  <div className="grid grid-cols-[80px_repeat(24,1fr)] border-b dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/20">
+    <div className="flex items-center justify-center border-r p-2 text-[10px] font-black text-zinc-400 dark:border-zinc-800 uppercase tracking-wider">
+      All Week
+    </div>
+
+    {hours.map((_, hIndex) => {
+      const isAllWeekActive = days.every(
+        (_, dIndex) => weekTemplate[days[dIndex]]?.[hIndex]
+      );
+
+      const handleToggleAllWeek = () => {
+        try {
+          const updated = { ...weekTemplate };
+
+          // Update week template
+          days.forEach((day) => {
+            const row = [...(updated[day] ?? createZeroSchedule())];
+            row[hIndex] = !isAllWeekActive;
+            updated[day] = row;
+          });
+
+          const weekStart = formatDateISO(weekStartDate);
+          setWeekTemplate(campaignId, weekStart, updated);
+
+          // Update only overridden dates
+          const affectedDates = days.map((day, di) => {
+            const dateISO = formatDateISO(addDays(weekStartDate, di));
+
+            if (Object.hasOwn(dateOverrides, dateISO)) {
+              const row = [
+                ...(dateOverrides[dateISO] ??
+                  updated[day] ??
+                  createZeroSchedule()),
+              ];
+
+              row[hIndex] = !isAllWeekActive;
+              setDateOverride(campaignId, weekStart, dateISO, row);
+            }
+
+            return dateISO;
+          });
+
+          console.log("All week toggled", {
+            newActive: !isAllWeekActive,
+            affectedDates,
+            actionEnabled: !isAllWeekActive,
+          });
+        } catch (e) {
+          console.log("SchedulerGrid - toggle all-week error", e);
+        }
+      };
+
+      return (
+        <div
+          key={`switch-${hIndex}`}
+          className="flex items-center justify-center p-2 border-r last:border-0 dark:border-zinc-800"
+        >
+          <Switch
+            size="sm"
+            checked={isAllWeekActive}
+            onCheckedChange={handleToggleAllWeek}
+            className="scale-90 cursor-pointer"
+          />
+        </div>
+      );
+    })}
+  </div>
+)}
     </>
   );
 }

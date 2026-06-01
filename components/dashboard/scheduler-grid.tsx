@@ -52,6 +52,7 @@ export function SchedulerGrid() {
     toggleDateHour,
     setWeekTemplate,
     setDateOverride,
+    isPastHour,
   } = useSchedulerGrid();
 
   if (!selectedCampaign) return null;
@@ -113,6 +114,8 @@ export function SchedulerGrid() {
                   toggleFullDay={toggleFullDay}
                   toggleWeeklyCell={toggleWeeklyCell}
                   campaignId={selectedCampaign.id}
+                                isPastHour={isPastHour}
+                                weekStartDate={weekStartDate}
                 />
               ))}
             </>
@@ -123,6 +126,8 @@ export function SchedulerGrid() {
               activeDateSchedule={activeDateSchedule}
               toggleDateHour={toggleDateHour}
               campaignId={selectedCampaign.id}
+                            isPastHour={isPastHour}
+                            activeSelectedDate={activeSelectedDate}
             />
           )}
         </div>

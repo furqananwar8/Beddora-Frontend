@@ -28,7 +28,7 @@ import {
   getWeekDayKey,
 } from "@/components/dashboard/scheduler/scheduler-utils";
 
-type CampaignScheduleDraft = {
+type WeeklyDraft = {
   weekTemplate?: WeekTemplate;
   dateOverrides?: DateOverrides;
 };
@@ -40,7 +40,6 @@ export function useSchedulerGrid() {
     campaignSchedules,
     setWeekTemplate,
     setDateOverride,
-    setPendingScheduleSave,
   } = useDashboard();
 
   const [mode, setMode] = useState<"WEEK" | "DATE">("WEEK");
@@ -195,8 +194,8 @@ export function useSchedulerGrid() {
   }, [activeWeekStart, apiCampaignData]);
 
   const campaignSchedule = useMemo(() => {
-    const draft =
-      (campaignSchedules[selectedCampaignKey] as CampaignScheduleDraft) ?? {};
+    const campaignDraft = campaignSchedules[selectedCampaignKey];
+    const draft = (campaignDraft?.weeks?.[activeWeekStart] as WeeklyDraft) ?? {};
 
     return {
       weekTemplate: {
@@ -208,27 +207,27 @@ export function useSchedulerGrid() {
         ...(draft.dateOverrides ?? {}),
       },
     };
-  }, [backendSchedule, campaignSchedules, selectedCampaignKey]);
+  }, [activeWeekStart, backendSchedule, campaignSchedules, selectedCampaignKey]);
 
   const campaignIdNum =
     Number(selectedCampaignKey) || apiCampaignData?.campaignId || 0;
 
-  const saveSchedules = useMemo(
-    () =>
+  const saveSchedules = useMemo(() => {
+    if (!campaignIdNum) return [];
+
+    const campaignDraft = campaignSchedules[selectedCampaignKey];
+    const weeks = campaignDraft?.weeks ?? {};
+
+    return Object.entries(weeks).flatMap(([weekStart, draft]) =>
       buildSchedulesFromState(
         undefined,
-        campaignSchedule.weekTemplate,
-        campaignSchedule.dateOverrides,
+        draft.weekTemplate ?? createEmptyWeekTemplate(),
+        draft.dateOverrides ?? {},
         campaignIdNum,
-        activeWeekStart,
+        weekStart,
       ),
-    [
-      activeWeekStart,
-      campaignIdNum,
-      campaignSchedule.dateOverrides,
-      campaignSchedule.weekTemplate,
-    ],
-  );
+    );
+  }, [campaignIdNum, campaignSchedules, selectedCampaignKey]);
 
   const handleSyncNow = async () => {
     setSyncModalOpen(true);
@@ -297,23 +296,7 @@ export function useSchedulerGrid() {
     }
   };
 
-  useEffect(() => {
-    if (!selectedCampaign || !campaignIdNum) {
-      setPendingScheduleSave(null);
-      return;
-    }
-
-    setPendingScheduleSave({
-      campaignId: campaignIdNum,
-      campaignName: selectedCampaign.name,
-      schedules: saveSchedules,
-    });
-  }, [
-    campaignIdNum,
-    saveSchedules,
-    selectedCampaign,
-    setPendingScheduleSave,
-  ]);
+  // Pending schedule save is managed at the DashboardProvider level now.
 
   useEffect(() => {
     const es = new EventSource(
@@ -400,11 +383,16 @@ export function useSchedulerGrid() {
     if (!selectedCampaign) return;
 
     const emptyTemplate = createEmptyWeekTemplate();
-    setWeekTemplate(selectedCampaign.id, emptyTemplate);
+    setWeekTemplate(selectedCampaign.id, activeWeekStart, emptyTemplate);
 
     SCHEDULER_DAYS.forEach((_, dayIndex) => {
       const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
-      setDateOverride(selectedCampaign.id, dateISO, createZeroSchedule());
+      setDateOverride(
+        selectedCampaign.id,
+        activeWeekStart,
+        dateISO,
+        createZeroSchedule(),
+      );
     });
   };
 
@@ -415,14 +403,19 @@ export function useSchedulerGrid() {
     const currentDay = weekTemplate[day] ?? createZeroSchedule();
     const nextDay = [...currentDay];
     nextDay[hourIndex] = !nextDay[hourIndex];
-    setWeekTemplate(selectedCampaign.id, {
+    setWeekTemplate(selectedCampaign.id, activeWeekStart, {
       ...weekTemplate,
       [day]: nextDay,
     });
 
     const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
     if (Object.hasOwn(dateOverrides, dateISO)) {
-      setDateOverride(selectedCampaign.id, dateISO, nextDay);
+      setDateOverride(
+        selectedCampaign.id,
+        activeWeekStart,
+        dateISO,
+        nextDay,
+      );
     }
   };
 
@@ -433,14 +426,19 @@ export function useSchedulerGrid() {
     const currentDay = weekTemplate[day] ?? createZeroSchedule();
     const isAllActive = currentDay.every(Boolean);
     const nextDay = Array(24).fill(!isAllActive);
-    setWeekTemplate(selectedCampaign.id, {
+    setWeekTemplate(selectedCampaign.id, activeWeekStart, {
       ...weekTemplate,
       [day]: nextDay,
     });
 
     const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
     if (Object.hasOwn(dateOverrides, dateISO)) {
-      setDateOverride(selectedCampaign.id, dateISO, nextDay);
+      setDateOverride(
+        selectedCampaign.id,
+        activeWeekStart,
+        dateISO,
+        nextDay,
+      );
     }
   };
 
@@ -449,7 +447,27 @@ export function useSchedulerGrid() {
 
     const nextSchedule = [...activeDateSchedule];
     nextSchedule[hourIndex] = !nextSchedule[hourIndex];
-    setDateOverride(selectedCampaign.id, activeSelectedDate, nextSchedule);
+    setDateOverride(
+      selectedCampaign.id,
+      activeWeekStart,
+      activeSelectedDate,
+      nextSchedule,
+    );
+  };
+
+  const isPastHour = (dateISO: string, hourIndex: number) => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const dateToCheck = new Date(`${dateISO}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    dateToCheck.setHours(0, 0, 0, 0);
+
+    if (dateToCheck < today) return true;
+    if (dateToCheck.getTime() === today.getTime()) {
+      return hourIndex < currentHour;
+    }
+    return false;
   };
 
   return {
@@ -491,5 +509,6 @@ export function useSchedulerGrid() {
     toggleDateHour,
     setWeekTemplate,
     setDateOverride,
+    isPastHour,
   };
 }
