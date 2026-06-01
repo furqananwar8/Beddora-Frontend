@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { DayKey } from "@/lib/context/dashboard-context";
+import { formatDateISO } from "./scheduler-utils";
+import { addDays } from "date-fns";
 
 type WeeklySchedulerRowProps = {
   day: DayKey;
@@ -12,6 +14,8 @@ type WeeklySchedulerRowProps = {
   toggleFullDay: (dIndex: number) => void;
   toggleWeeklyCell: (dIndex: number, hIndex: number) => void;
   campaignId: string;
+  isPastHour: (dateISO: string, hourIndex: number) => boolean;
+  weekStartDate: Date;
 };
 
 export function WeeklySchedulerRow({
@@ -23,7 +27,11 @@ export function WeeklySchedulerRow({
   toggleFullDay,
   toggleWeeklyCell,
   campaignId,
+  isPastHour,
+  weekStartDate,
 }: WeeklySchedulerRowProps) {
+  const dateISO = formatDateISO(addDays(weekStartDate, dIndex));
+
   return (
     <div
       key={`${campaignId}-${day}`}
@@ -44,15 +52,21 @@ export function WeeklySchedulerRow({
       </div>
       {hours.map((_, hIndex) => {
         const isActive = isActiveHour(day, hIndex);
+        const pastHour = isPastHour(dateISO, hIndex);
+
         return (
           <div
             key={`${campaignId}-${dIndex}-${hIndex}`}
-            onClick={() => toggleWeeklyCell(dIndex, hIndex)}
+            onClick={() => !pastHour && toggleWeeklyCell(dIndex, hIndex)}
             className={cn(
-              "h-17 border-r last:border-0 dark:border-zinc-800 cursor-pointer transition-all duration-75 active:scale-95",
-              isActive
-                ? "bg-indigo-600 hover:bg-indigo-700 shadow-inner"
-                : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800",
+              "h-17 border-r last:border-0 dark:border-zinc-800 transition-all duration-75",
+              pastHour
+                ? "bg-zinc-200 dark:bg-zinc-700 cursor-not-allowed opacity-50"
+                : "cursor-pointer active:scale-95",
+              !pastHour &&
+                (isActive
+                  ? "bg-indigo-600 hover:bg-indigo-700 shadow-inner"
+                  : "bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"),
             )}
           />
         );
