@@ -232,9 +232,9 @@ function DashboardLayoutContent({
                   </div>
                   <div className="mt-1 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
                     <span>ID: {campaign.id}</span>
-                    <span className="text-zinc-900 dark:text-zinc-100 font-bold">
+                    {/* <span className="text-zinc-900 dark:text-zinc-100 font-bold">
                       {campaign.budget}
-                    </span>
+                    </span> */}
                   </div>
                 </div>
                 {selectedCampaign?.id === campaign.id && (

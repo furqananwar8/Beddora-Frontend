@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest) {
+  console.log('Backend response status:');
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/amazon/login`,
     {
       headers: { cookie: req.headers.get('cookie') || '' },
     }
   );
+  console.log('Backend response status:', response);
   if (!response.ok) {
     return NextResponse.json(
       { error: 'Failed to initiate login' },

@@ -114,13 +114,13 @@ export function SchedulerHeader({
           />
           {isSyncing ? "Syncing" : "Sync Now"}
         </Button>
-        <Button
+        {/* <Button
           variant="outline"
           onClick={handleScheduleTest}
           className="w-full sm:w-auto"
         >
           Schedule +1m
-        </Button>
+        </Button> */}
       </div>
     </div>
   );
