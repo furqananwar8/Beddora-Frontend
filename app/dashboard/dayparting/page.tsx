@@ -1,6 +1,6 @@
 "use client";
 
-import { SchedulerGrid } from "@/components/dashboard/scheduler-grid";
+// import { SchedulerGrid } from "@/components/dashboard/scheduler-grid";
 import { InviteUserModal } from "@/components/dashboard/invite-user-modal";
 import { useDashboard } from "@/lib/context/dashboard-context";
 import { useUser } from "@/hooks/useUser";
@@ -32,7 +32,7 @@ export default function DaypartingPage() {
       </div>
 
       {/* Grid */}
-      <SchedulerGrid />
+      {/* <SchedulerGrid /> */}
     </div>
   );
 }

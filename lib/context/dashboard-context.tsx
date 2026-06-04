@@ -12,8 +12,11 @@ import { buildSchedulesFromState, backendDateToISO, formatDateISO, SCHEDULER_DAY
 export type Campaign = {
   id: string;
   name: string;
-  status: 'ACTIVE' | 'PAUSED';
-  budget: string;
+  status: 'ENABLED' | 'PAUSED' | 'ARCHIVED';
+  adProduct: 'SPONSORED_PRODUCTS' | 'SPONSORED_BRANDS' | 'SPONSORED_DISPLAY';
+  marketplaces?: string[];
+  creationDate?: string;
+  countryCode?: string;
 };
 
 export type DayKey = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
@@ -164,7 +167,6 @@ export function DashboardProvider({ children, initialCampaigns }: { children: Re
         existingSchedules = found?.schedules ?? [];
       } catch (e) {
         // If fetch fails, fallback to undefined so we still send local drafts
-        console.warn("handleSave: failed to fetch existing campaign schedules", e);
         existingSchedules = undefined;
       }
 
@@ -217,7 +219,6 @@ export function DashboardProvider({ children, initialCampaigns }: { children: Re
         }
       });
     } catch (error) {
-      console.error("Failed to save dayparting schedule:", error);
       toast.error("Failed to save one or more campaign schedules.");
     }
   };

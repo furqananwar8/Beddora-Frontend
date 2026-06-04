@@ -1,16 +1,35 @@
 import { useQuery } from "@tanstack/react-query";
-import getCampaigns, { CampaignListParams, CampaignListResponse } from "@/api/services/campaigns.api";
 
-export function useCampaigns(params: CampaignListParams = { page: 1, limit: 20, state: "paused" }) {
-  const { page = 1, limit = 20, state } = params;
-
-  return useQuery<CampaignListResponse>({
-    queryKey: ["campaigns", { page, limit, state }],
-    queryFn: () => getCampaigns({ page, limit, state }),
-    staleTime: 1000 * 60 * 2,
-    refetchOnWindowFocus: false,
-    retry: 1,
-  });
+interface UseCampaignsOptions {
+  type: "SPONSORED_PRODUCTS" | "SPONSORED_BRANDS" | "SPONSORED_DISPLAY";
+  cursor?: string | null;
+  limit?: number;
+  search?: string;
+  state?: string;
 }
 
-export default useCampaigns;
+export function useCampaigns(options: UseCampaignsOptions) {
+  const { type, cursor, limit = 15, search, state } = options;
+
+  return useQuery({
+    queryKey: ["campaigns", type, cursor, limit, search, state],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        type,
+        limit: String(limit),
+      });
+      if (cursor) params.append("cursor", cursor);
+      if (search) params.append("search", search);
+      if (state) params.append("state", state);
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/campaigns?${params.toString()}`,
+        { credentials: "include" }
+      );
+
+      if (!res.ok) throw new Error("Failed to fetch campaigns");
+      return res.json();
+    },
+    staleTime: 30 * 1000,
+  });
+}
