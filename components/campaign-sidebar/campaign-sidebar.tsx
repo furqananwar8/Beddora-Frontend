@@ -91,12 +91,12 @@ export function CampaignSidebar() {
 
       {/* Tabs */}
       <div className="flex border-b dark:border-zinc-800 shrink-0">
-        {TABS.map((tab) => (
+       {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => handleTabChange(tab.key)}
             className={cn(
-              "flex-1 px-2 py-2.5 text-xs font-medium transition-colors border-b-2 truncate",
+              "cursor-pointer flex-1 px-2 py-2.5 text-xs font-medium transition-colors border-b-2 whitespace-normal break-words",
               activeTab === tab.key
                 ? "border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400"
                 : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"

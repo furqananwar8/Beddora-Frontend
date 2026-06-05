@@ -34,7 +34,7 @@ export function CampaignCard({
     <div
       onClick={onClick}
       className={cn(
-        "group relative flex flex-col gap-2 rounded-xl p-3 transition-all cursor-pointer border-2",
+        "group relative flex flex-col gap-2 rounded-xl p-3 transition-all duration-300 ease-in-out cursor-pointer border-2 mx-1.5 my-2",
         isSelected
           ? "bg-indigo-50/50 border-indigo-100 dark:bg-indigo-900/10 dark:border-indigo-900/30"
           : "hover:bg-zinc-50 border-transparent dark:hover:bg-zinc-800",
@@ -65,7 +65,7 @@ export function CampaignCard({
       </div>
 
       {/* SKU */}
-      <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 leading-tight truncate">
+      <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 leading-tight whitespace-normal break-words">
         {campaign.name}
       </div>
 
@@ -102,11 +102,16 @@ export function CampaignCard({
         </div>
       )}
 
-      {isSelected && (
-        <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">
-          Selected
-        </div>
-      )}
+      <div
+        className={cn(
+          "text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter",
+          isSelected
+            ? "opacity-100 translate-y-0 transition-all duration-300 ease-in-out"
+            : "opacity-0 -translate-y-1 pointer-events-none absolute",
+        )}
+      >
+        Selected
+      </div>
     </div>
   );
 }
