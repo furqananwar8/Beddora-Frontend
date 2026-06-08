@@ -79,7 +79,7 @@ export const updateCampaignSchedule = async (
   payload: UpdateCampaignSchedulePayload,
 ) => {
   const response = await apiClient.post(
-    `/campaign-schedules/${campaignId}/schedule`,
+    `/campaigns/${campaignId}/schedule`,
     payload,
   );
   return response.data;

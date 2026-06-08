@@ -133,7 +133,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   // Fetch initial campaigns for context (optional — sidebar fetches its own)
   const campaignsQuery = useCampaigns({
     type: "SPONSORED_PRODUCTS",
-    page: 1,
     limit: 15,
   });
 

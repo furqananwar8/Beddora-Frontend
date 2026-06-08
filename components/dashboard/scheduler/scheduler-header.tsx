@@ -18,7 +18,6 @@ type SchedulerHeaderProps = {
   activeSelectedDate: string;
   setSelectedDate: (date: string) => void;
   handleSyncNow: () => Promise<void>;
-  handleScheduleTest: () => Promise<void>;
   isSyncing: boolean;
 };
 
@@ -32,7 +31,6 @@ export function SchedulerHeader({
   activeSelectedDate,
   setSelectedDate,
   handleSyncNow,
-  handleScheduleTest,
   isSyncing,
 }: SchedulerHeaderProps) {
   return (

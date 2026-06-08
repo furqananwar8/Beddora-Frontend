@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { useDashboard } from "@/lib/context/dashboard-context";
 import { useCampaignSync } from "./use-campaign-sync";
 import { useScheduleDates } from "./use-schedule-dates";
@@ -19,6 +20,24 @@ export function useSchedulerGrid() {
   const campaignIdNum =
     selectedCampaign?.campaignId || Number(selectedCampaign?.id) || 0;
 
+  const [scheduleAction, setScheduleActionState] = useState<"ENABLED" | "PAUSED">(
+    "ENABLED",
+  );
+
+  const setScheduleAction = useCallback(
+    (action: "ENABLED" | "PAUSED") => {
+      setScheduleActionState(action);
+      if (selectedCampaign) {
+        const draft = campaignSchedules[selectedCampaign.id];
+        const weeks = Object.keys(draft?.weeks || {});
+        weeks.forEach((weekStart) => {
+          setWeekAction(selectedCampaign.id, weekStart, action);
+        });
+      }
+    },
+    [selectedCampaign, campaignSchedules, setWeekAction],
+  );
+
   const sync = useCampaignSync({ selectedCampaign });
   const dates = useScheduleDates({ selectedCampaign });
   const grid = useScheduleGridState({
@@ -31,10 +50,12 @@ export function useSchedulerGrid() {
     setWeekAction,
     weekStartDate: dates.weekStartDate,
   });
+  
   const saveDraft = useScheduleSaveDraft(
     campaignIdNum,
     campaignSchedules,
     selectedCampaign?.id,
+    selectedCampaign?.countryCode || "US",
   );
 
   return {
@@ -79,6 +100,9 @@ export function useSchedulerGrid() {
     toggleFullDay: grid.toggleFullDay,
     toggleDateHour: grid.toggleDateHour,
     isPastHour: grid.isPastHour,
+
+    scheduleAction,
+    setScheduleAction,
 
     setWeekTemplate,
     setDateOverride,

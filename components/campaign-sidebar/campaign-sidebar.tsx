@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { SearchCampaigns } from "@/components/search-campaign/search-campaign";
 import { Button } from "@/components/ui/button";
+import { getTimezoneFromCountry } from "@/utils/getTimeZoneFromCountry";
 
 type CampaignType = "SPONSORED_PRODUCTS" | "SPONSORED_BRANDS" | "SPONSORED_DISPLAY";
 
@@ -138,11 +139,12 @@ export function CampaignSidebar() {
                 adProduct: campaign.adProduct,
                 countryCode: campaign.countryCode,
                 creationDate: campaign.creationDate,
+                timezone: getTimezoneFromCountry(campaign.countryCode) 
               }}
               isSelected={selectedCampaign?.id === campaign.campaignId.toString()}
               isOperating={false}
               onClick={() =>
-                setSelectedCampaign({
+               setSelectedCampaign({
                   id: campaign.campaignId.toString(),
                   name: campaign.name,
                   status: campaign.state.toUpperCase(),
@@ -150,6 +152,9 @@ export function CampaignSidebar() {
                   countryCode: campaign.countryCode,
                   marketplaces: campaign.marketplaces,
                   creationDate: campaign.creationDate,
+                  schedules: campaign.schedules,
+                  campaignId: campaign.campaignId,
+                  timezone: getTimezoneFromCountry(campaign.countryCode),
                 })
               }
             />

@@ -23,6 +23,10 @@ const COUNTRY_TIMEZONES: Record<string, string> = {
   MX: "America/Mexico_City",
 };
 
+export function getTimezoneFromCountry(countryCode: string): string {
+  return COUNTRY_TIMEZONES[countryCode] || "UTC";
+}
+
 export function formatDateISO(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -145,7 +149,7 @@ function convertToUtc(
   timeStr: string,  // "14:00"
   countryCode: string,
 ): { scheduleDate: string; startTime: string } {
-  const timezone = COUNTRY_TIMEZONES[countryCode] || "UTC";
+  const timezone = getTimezoneFromCountry(countryCode);
   
   // Parse local date/time
   const [year, month, day] = dateStr.split("-").map(Number);
@@ -182,7 +186,7 @@ export function buildSchedulesFromState(
   const schedules: any[] = [];
   const baseDate = new Date(`${weekStart}T00:00:00`);
 
-  const getTimeSlots = (hours: boolean[]) => {
+  const getTimeSlots = (hours: boolean[], dateStr: string) => {
     const slots: { startTime: string; endTime: string }[] = [];
     let start: number | null = null;
 
@@ -191,8 +195,6 @@ export function buildSchedulesFromState(
         if (start === null) start = i;
       } else {
         if (start !== null) {
-          // Convert local times to UTC
-          const dateStr = formatDateISO(baseDate); // temporary, will be overridden
           const startUtc = convertToUtc(dateStr, `${String(start).padStart(2, "0")}:00`, countryCode);
           const endUtc = convertToUtc(dateStr, `${String(i).padStart(2, "0")}:00`, countryCode);
           
@@ -210,25 +212,15 @@ export function buildSchedulesFromState(
   // Week template → schedules
   SCHEDULER_DAYS.forEach((day, index) => {
     const hours = weekTemplate[day] || [];
-    const slots = getTimeSlots(hours);
+    const date = new Date(baseDate);
+    date.setDate(date.getDate() + index);
+    const dateStr = formatDateISO(date);
+    const slots = getTimeSlots(hours, dateStr);
+    
     if (slots.length > 0) {
-      const date = new Date(baseDate);
-      date.setDate(date.getDate() + index);
-      const dateStr = formatDateISO(date);
-      
-      // Re-convert with actual date
-      const convertedSlots = slots.map((slot) => {
-        const startUtc = convertToUtc(dateStr, `${String(parseInt(slot.startTime)).padStart(2, "0")}:00`, countryCode);
-        const endUtc = convertToUtc(dateStr, `${String(parseInt(slot.endTime)).padStart(2, "0")}:00`, countryCode);
-        return {
-          startTime: startUtc.startTime,
-          endTime: endUtc.startTime,
-        };
-      });
-
       schedules.push({
         scheduleDate: convertToUtc(dateStr, "00:00", countryCode).scheduleDate,
-        timeSlots: convertedSlots,
+        timeSlots: slots,
         action,
       });
     }
@@ -236,7 +228,7 @@ export function buildSchedulesFromState(
 
   // Date overrides → replace week template for that date
   Object.entries(dateOverrides).forEach(([dateISO, hours]) => {
-    const slots = getTimeSlots(hours);
+    const slots = getTimeSlots(hours, dateISO);
     const ymd = convertToUtc(dateISO, "00:00", countryCode).scheduleDate;
     const existingIndex = schedules.findIndex((s) => s.scheduleDate === ymd);
 
@@ -244,30 +236,14 @@ export function buildSchedulesFromState(
       if (slots.length === 0) {
         schedules.splice(existingIndex, 1);
       } else {
-        const convertedSlots = slots.map((slot) => {
-          const startUtc = convertToUtc(dateISO, `${String(parseInt(slot.startTime)).padStart(2, "0")}:00`, countryCode);
-          const endUtc = convertToUtc(dateISO, `${String(parseInt(slot.endTime)).padStart(2, "0")}:00`, countryCode);
-          return {
-            startTime: startUtc.startTime,
-            endTime: endUtc.startTime,
-          };
-        });
         schedules[existingIndex] = {
           scheduleDate: ymd,
-          timeSlots: convertedSlots,
+          timeSlots: slots,
           action,
         };
       }
     } else if (slots.length > 0) {
-      const convertedSlots = slots.map((slot) => {
-        const startUtc = convertToUtc(dateISO, `${String(parseInt(slot.startTime)).padStart(2, "0")}:00`, countryCode);
-        const endUtc = convertToUtc(dateISO, `${String(parseInt(slot.endTime)).padStart(2, "0")}:00`, countryCode);
-        return {
-          startTime: startUtc.startTime,
-          endTime: endUtc.startTime,
-        };
-      });
-      schedules.push({ scheduleDate: ymd, timeSlots: convertedSlots, action });
+      schedules.push({ scheduleDate: ymd, timeSlots: slots, action });
     }
   });
 

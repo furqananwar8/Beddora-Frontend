@@ -10,7 +10,7 @@ interface UseCampaignsOptions {
 
 export function useCampaigns(options: UseCampaignsOptions) {
   const { type, cursor, limit = 15, search, state } = options;
-
+  console.log({options})
   return useQuery({
     queryKey: ["campaigns", type, cursor, limit, search, state],
     queryFn: async () => {
