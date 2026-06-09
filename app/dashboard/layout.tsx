@@ -83,21 +83,6 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
 
       {/* Main Content */}
       <div className="flex flex-1 flex-col">
-        {/* Header */}
-        <header className="flex h-16 items-center justify-between border-b bg-white px-8 dark:bg-zinc-900 dark:border-zinc-800">
-          <div className="flex items-center space-x-4">
-            <button className="rounded-full p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 dark:hover:bg-zinc-800">
-              <Bell className="h-5 w-5" />
-            </button>
-            <button className="rounded-full p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 dark:hover:bg-zinc-800">
-              <HelpCircle className="h-5 w-5" />
-            </button>
-            <button className="rounded-full p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600 dark:hover:bg-zinc-800">
-              <Settings className="h-5 w-5" />
-            </button>
-          </div>
-        </header>
-
         {/* View Content */}
         <main className="flex-1 overflow-auto bg-[#F8FAFC] dark:bg-zinc-950 p-8">
           {children}

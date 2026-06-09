@@ -4,9 +4,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, RefreshCw } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { format, startOfWeek } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { startOfWeek } from "date-fns";
 
 type SchedulerHeaderProps = {
   mode: "WEEK" | "DATE";
@@ -17,8 +16,6 @@ type SchedulerHeaderProps = {
   setWeekStart: (date: string) => void;
   activeSelectedDate: string;
   setSelectedDate: (date: string) => void;
-  handleSyncNow: () => Promise<void>;
-  isSyncing: boolean;
 };
 
 export function SchedulerHeader({
@@ -30,8 +27,6 @@ export function SchedulerHeader({
   setWeekStart,
   activeSelectedDate,
   setSelectedDate,
-  handleSyncNow,
-  isSyncing,
 }: SchedulerHeaderProps) {
   return (
     <div className="flex gap-4">
@@ -44,9 +39,6 @@ export function SchedulerHeader({
           <TabsTrigger className="cursor-pointer" value="WEEK">
             Week Mode
           </TabsTrigger>
-          {/* <TabsTrigger className="cursor-pointer" value="DATE">
-            Date Mode
-          </TabsTrigger> */}
         </TabsList>
       </Tabs>
 
@@ -79,46 +71,6 @@ export function SchedulerHeader({
             </PopoverContent>
           </Popover>
         )}
-        {/* {mode === "DATE" && (
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-left font-normal"
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                <span>{format(new Date(`${activeSelectedDate}T00:00:00`), "PPP")}</span>
-              </Button>
-            </PopoverTrigger>
-
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                value={activeSelectedDate}
-                min={defaultDate}
-                onChange={setSelectedDate}
-              />
-            </PopoverContent>
-          </Popover>
-        )} */}
-
-        <Button
-          variant="outline"
-          onClick={handleSyncNow}
-          disabled={isSyncing}
-          className="w-full sm:w-auto"
-        >
-          <RefreshCw
-            className={cn("mr-2 h-4 w-4", isSyncing && "animate-spin")}
-          />
-          {isSyncing ? "Syncing" : "Sync Now"}
-        </Button>
-        {/* <Button
-          variant="outline"
-          onClick={handleScheduleTest}
-          className="w-full sm:w-auto"
-        >
-          Schedule +1m
-        </Button> */}
       </div>
     </div>
   );

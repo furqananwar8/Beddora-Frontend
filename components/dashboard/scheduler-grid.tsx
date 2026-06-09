@@ -20,7 +20,6 @@ export function SchedulerGrid() {
     setSyncModalOpen,
     syncProgressItems,
     syncCompleted,
-    handleSyncNow,
 
     mode,
     setMode,
@@ -78,8 +77,6 @@ export function SchedulerGrid() {
           setWeekStart={setWeekStart}
           activeSelectedDate={activeSelectedDate}
           setSelectedDate={setSelectedDate}
-          handleSyncNow={handleSyncNow}
-          isSyncing={isSyncing}
         />
       </div>
 
