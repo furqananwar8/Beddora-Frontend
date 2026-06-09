@@ -25,18 +25,18 @@ export async function GET(req: NextRequest) {
     const [nameValue] = raw.split(';');
     const [name, value] = nameValue.split('=');
     
-     if (name === 'sid') {
+      const isProd = process.env.NODE_ENV === 'production';
+
       nextResponse.cookies.set({
         name,
         value,
         httpOnly: true,
-        secure: true,
+        secure: isProd,
         sameSite: 'lax',
         path: '/',
-        domain: 'dayparting.beddora.com',
         maxAge: 300 * 1000,
+        ...(isProd && { domain: 'dayparting.beddora.com' }),
       });
-    }
   });
 
   return nextResponse;

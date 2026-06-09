@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const data = await response.json();
   if (!data.success || !data.sessionId) {
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_FRONTEND_BASE_URL}/auth/login?error=auth_failed`,
+      `${process.env.NEXT_PUBLIC_FRONTEND_BASE_URL}/?error=auth_failed`,
       302
     );
   }
@@ -28,15 +28,17 @@ export async function GET(req: NextRequest) {
     302
   );
 
+  const isProd = process.env.NODE_ENV === 'production';
+  
   nextResponse.cookies.set({
     name: 'sid',
     value: data.sessionId,
     httpOnly: true,
-    secure: true,                          
-    sameSite: 'lax',                        
+    secure: isProd,        // false locally, true in production
+    sameSite: 'lax',       // lax works for both local and same-site subdomains
     path: '/',
-    domain: 'dayparting.beddora.com',      
-    maxAge: 60 * 60 * 24 * 7,             
+    ...(isProd && { domain: 'dayparting.beddora.com' }),
+    maxAge: 60 * 60 * 24 * 7,
   });
 
   return nextResponse;
