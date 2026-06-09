@@ -59,7 +59,6 @@ const FormDate = memo(({ field: config }: { field: any }) => {
 
                 <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
-                        // mode={config.mode || "single"}
                         mode="single"
                         required
                         selected={field.value ? new Date(field.value) : undefined}

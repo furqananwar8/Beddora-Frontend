@@ -21,7 +21,7 @@ function buildMonthGrid(currentMonth: Date) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const grid: Array<Date | null> = [];
-  const firstDateIndex = (startDay + 6) % 7; // shift so Monday is first
+  const firstDateIndex = (startDay + 6) % 7;
 
   for (let i = 0; i < firstDateIndex; i += 1) {
     grid.push(null);
@@ -39,16 +39,44 @@ function buildMonthGrid(currentMonth: Date) {
 }
 
 interface CalendarProps {
-  value: string;
+  // Original API
+  value?: string;
   min?: string;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
   className?: string;
+
+  // shadcn / react-day-picker compatible API
+  mode?: "single" | "range";
+  required?: boolean;
+  selected?: Date | undefined;
+  onSelect?: (date: Date | undefined) => void;
+  disabled?: (date: Date) => boolean;
 }
 
-export function Calendar({ value, min, onChange, className }: CalendarProps) {
+export function Calendar({
+  value,
+  min,
+  onChange,
+  className,
+  mode,
+  required,
+  selected,
+  onSelect,
+  disabled,
+}: CalendarProps) {
+  // Normalize props: support both APIs
+  const normalizedValue = selected ? formatIsoDate(selected) : value;
+  const normalizedOnChange = (iso: string) => {
+    if (onChange) onChange(iso);
+    if (onSelect) {
+      const d = new Date(iso + "T00:00:00");
+      onSelect(Number.isNaN(d.getTime()) ? undefined : d);
+    }
+  };
+
   const [currentMonth, setCurrentMonth] = React.useState(() => {
-    if (value) {
-      const parsed = new Date(value + "T00:00:00");
+    if (normalizedValue) {
+      const parsed = new Date(normalizedValue + "T00:00:00");
       if (!Number.isNaN(parsed.getTime())) {
         return new Date(parsed.getFullYear(), parsed.getMonth(), 1);
       }
@@ -58,12 +86,12 @@ export function Calendar({ value, min, onChange, className }: CalendarProps) {
   });
 
   React.useEffect(() => {
-    if (!value) return;
-    const selected = new Date(value + "T00:00:00");
-    if (!Number.isNaN(selected.getTime())) {
-      setCurrentMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+    if (!normalizedValue) return;
+    const selectedDate = new Date(normalizedValue + "T00:00:00");
+    if (!Number.isNaN(selectedDate.getTime())) {
+      setCurrentMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
     }
-  }, [value]);
+  }, [normalizedValue]);
 
   const minDate = min ? new Date(min + "T00:00:00") : null;
   const today = new Date();
@@ -72,27 +100,39 @@ export function Calendar({ value, min, onChange, className }: CalendarProps) {
   const handleSelect = (date: Date) => {
     const iso = formatIsoDate(date);
     if (minDate && date < minDate) return;
-    onChange(iso);
+    if (disabled && disabled(date)) return;
+    normalizedOnChange(iso);
   };
 
   const isSelectable = (date: Date) => {
     if (minDate && date < minDate) return false;
+    if (disabled && disabled(date)) return false;
     return true;
   };
 
   return (
     <div className={cn("space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950", className)}>
       <div className="flex items-center justify-between">
-        <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+        >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{getMonthLabel(currentMonth)}</div>
-        <Button variant="outline" size="icon" onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>
+        <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {getMonthLabel(currentMonth)}
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+        >
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
       <div className="grid grid-cols-7 gap-2 text-[10px] uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label) => (
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label) => (
           <div key={label} className="text-center font-semibold">
             {label}
           </div>
@@ -105,7 +145,7 @@ export function Calendar({ value, min, onChange, className }: CalendarProps) {
           }
 
           const dateIso = formatIsoDate(date);
-          const isSelected = dateIso === value;
+          const isSelected = dateIso === normalizedValue;
           const isToday = formatIsoDate(today) === dateIso;
           const selectable = isSelectable(date);
 
