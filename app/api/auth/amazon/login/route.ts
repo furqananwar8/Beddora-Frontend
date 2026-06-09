@@ -25,15 +25,16 @@ export async function GET(req: NextRequest) {
     const [nameValue] = raw.split(';');
     const [name, value] = nameValue.split('=');
     
-    if (name === 'sid') {  // <-- change if your SESSION_COOKIE constant is different
+     if (name === 'sid') {
       nextResponse.cookies.set({
         name,
         value,
         httpOnly: true,
-        secure: false,        // localhost is HTTP
-        sameSite: 'lax',      // localhost → localhost
+        secure: true,
+        sameSite: 'lax',
         path: '/',
-        maxAge: 300 * 1000,   // 5 min (matches backend TTL)
+        domain: 'dayparting.beddora.com',
+        maxAge: 300 * 1000,
       });
     }
   });

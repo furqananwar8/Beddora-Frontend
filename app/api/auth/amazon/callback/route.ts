@@ -28,15 +28,15 @@ export async function GET(req: NextRequest) {
     302
   );
 
-  // Set the final session cookie on LOCALHOST
   nextResponse.cookies.set({
-    name: 'sid',  // <-- must match your SESSION_COOKIE constant
+    name: 'sid',
     value: data.sessionId,
     httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
+    secure: true,                          
+    sameSite: 'lax',                        
     path: '/',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    domain: 'dayparting.beddora.com',      
+    maxAge: 60 * 60 * 24 * 7,             
   });
 
   return nextResponse;
