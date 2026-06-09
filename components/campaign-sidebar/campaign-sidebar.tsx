@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CampaignCard } from "@/components/campaign-card/campaign-card";
 import { useCampaigns } from "@/hooks/useCampaigns";
@@ -28,7 +28,7 @@ export function CampaignSidebar() {
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const { selectedCampaign, setSelectedCampaign } = useDashboard();
+  const { selectedCampaign, setSelectedCampaign, setCampaigns } = useDashboard();
 
   const currentCursor = cursorHistory[currentIndex];
 
@@ -43,6 +43,23 @@ export function CampaignSidebar() {
   const meta = campaignsQuery.data?.meta;
   const isLoading = campaignsQuery.isLoading;
   const isError = campaignsQuery.isError;
+
+  useEffect(() => {
+    if (campaignsQuery.data?.data) {
+      const mapped = campaignsQuery.data.data.map((c: any) => ({
+        id: c.campaignId.toString(),
+        name: c.name,
+        status: c.state.toUpperCase(),
+        adProduct: c.adProduct,
+        countryCode: c.countryCode,
+        creationDate: c.creationDate,
+        schedules: c.schedules,
+        campaignId: c.campaignId,
+        timezone: getTimezoneFromCountry(c.countryCode),
+      }));
+      setCampaigns(mapped);
+    }
+  }, [campaignsQuery.data, setCampaigns]);
 
   const handleTabChange = useCallback((tab: CampaignType) => {
     setActiveTab(tab);

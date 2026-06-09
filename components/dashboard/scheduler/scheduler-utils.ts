@@ -16,12 +16,10 @@ export const SCHEDULER_HOURS: string[] = Array.from({ length: 24 }, (_, i) =>
   String(i),
 );
 
-// Country code → IANA timezone
-const COUNTRY_TIMEZONES: Record<string, string> = {
-  US: "America/New_York",
-  CA: "America/Toronto",
-  MX: "America/Mexico_City",
-};
+// ─────────────────────────────────────────────
+// ALL SCHEDULER TIMES ARE PACIFIC TIME (PST/PDT)
+// No conversion. Grid = PST. Backend = PST.
+// ─────────────────────────────────────────────
 
 export function formatDateISO(date: Date): string {
   const y = date.getFullYear();
@@ -31,15 +29,15 @@ export function formatDateISO(date: Date): string {
 }
 
 export function formatYmd(date: Date): string {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(date.getUTCDate()).padStart(2, "0");
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
   return `${y}${m}${d}`;
 }
 
 export function formatTime(date: Date): string {
-  const h = String(date.getUTCHours()).padStart(2, "0");
-  const min = String(date.getUTCMinutes()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
   return `${h}:${min}`;
 }
 
@@ -74,22 +72,39 @@ export function createZeroSchedule(): boolean[] {
   return Array(24).fill(false);
 }
 
+// ── Helpers: pure date-string arithmetic (no timezone traps) ──
+
+function addDays(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  const yy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+function dayDiff(date1: string, date2: string): number {
+  const [y1, m1, d1] = date1.split("-").map(Number);
+  const [y2, m2, d2] = date2.split("-").map(Number);
+  const dt1 = Date.UTC(y1, m1 - 1, d1);
+  const dt2 = Date.UTC(y2, m2 - 1, d2);
+  return Math.floor((dt1 - dt2) / (1000 * 60 * 60 * 24));
+}
+
+// ── Build grid from backend schedules ──
+
 export function buildWeeklyTemplateFromSchedules(
   schedules: any[],
   activeWeekStart: string,
 ): WeekTemplate {
   const template = createEmptyWeekTemplate();
-  const weekBase = new Date(`${activeWeekStart}T00:00:00`);
 
   schedules.forEach((schedule) => {
     const dateISO = backendDateToISO(getScheduleDate(schedule));
     if (!dateISO) return;
 
-    const scheduleDate = new Date(`${dateISO}T00:00:00`);
-    const diffDays = Math.floor(
-      (scheduleDate.getTime() - weekBase.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
+    const diffDays = dayDiff(dateISO, activeWeekStart);
     if (diffDays < 0 || diffDays >= 7) return;
 
     const dayKey = SCHEDULER_DAYS[diffDays];
@@ -137,38 +152,7 @@ export function buildDateOverridesFromSchedules(
   return overrides;
 }
 
-/**
- * Convert local time to UTC using country code
- */
-function convertToUtc(
-  dateStr: string, // "2026-06-10"
-  timeStr: string,  // "14:00"
-  countryCode: string,
-): { scheduleDate: string; startTime: string } {
-  const timezone = COUNTRY_TIMEZONES[countryCode] || "UTC";
-  
-  // Parse local date/time
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const [hour, minute] = timeStr.split(":").map(Number);
-  
-  // Create date string for the specific timezone
-  const localDateTime = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
-  
-  // Convert to UTC
-  const utcDate = new Date(
-    new Date(localDateTime).toLocaleString("en-US", { timeZone: timezone })
-  );
-  
-  // Adjust for timezone offset
-  const localDate = new Date(localDateTime);
-  const offsetMs = localDate.getTime() - utcDate.getTime();
-  const actualUtc = new Date(localDate.getTime() - offsetMs);
-
-  return {
-    scheduleDate: formatYmd(actualUtc),
-    startTime: formatTime(actualUtc),
-  };
-}
+// ── Build backend payload from grid state ──
 
 export function buildSchedulesFromState(
   existingSchedules: any[] | undefined,
@@ -180,7 +164,6 @@ export function buildSchedulesFromState(
   countryCode: string = "US",
 ) {
   const schedules: any[] = [];
-  const baseDate = new Date(`${weekStart}T00:00:00`);
 
   const getTimeSlots = (hours: boolean[]) => {
     const slots: { startTime: string; endTime: string }[] = [];
@@ -191,14 +174,9 @@ export function buildSchedulesFromState(
         if (start === null) start = i;
       } else {
         if (start !== null) {
-          // Convert local times to UTC
-          const dateStr = formatDateISO(baseDate); // temporary, will be overridden
-          const startUtc = convertToUtc(dateStr, `${String(start).padStart(2, "0")}:00`, countryCode);
-          const endUtc = convertToUtc(dateStr, `${String(i).padStart(2, "0")}:00`, countryCode);
-          
           slots.push({
-            startTime: startUtc.startTime,
-            endTime: endUtc.startTime,
+            startTime: `${String(start).padStart(2, "0")}:00`,
+            endTime: `${String(i).padStart(2, "0")}:00`,
           });
           start = null;
         }
@@ -207,67 +185,40 @@ export function buildSchedulesFromState(
     return slots;
   };
 
-  // Week template → schedules
+  // Week template → schedules (PST, no conversion)
   SCHEDULER_DAYS.forEach((day, index) => {
     const hours = weekTemplate[day] || [];
     const slots = getTimeSlots(hours);
     if (slots.length > 0) {
-      const date = new Date(baseDate);
-      date.setDate(date.getDate() + index);
-      const dateStr = formatDateISO(date);
-      
-      // Re-convert with actual date
-      const convertedSlots = slots.map((slot) => {
-        const startUtc = convertToUtc(dateStr, `${String(parseInt(slot.startTime)).padStart(2, "0")}:00`, countryCode);
-        const endUtc = convertToUtc(dateStr, `${String(parseInt(slot.endTime)).padStart(2, "0")}:00`, countryCode);
-        return {
-          startTime: startUtc.startTime,
-          endTime: endUtc.startTime,
-        };
-      });
+      const dateISO = addDays(weekStart, index);
+      const ymd = dateISO.replace(/-/g, "");
 
       schedules.push({
-        scheduleDate: convertToUtc(dateStr, "00:00", countryCode).scheduleDate,
-        timeSlots: convertedSlots,
+        scheduleDate: ymd,
+        timeSlots: slots,
         action,
       });
     }
   });
 
-  // Date overrides → replace week template for that date
+  // Date overrides → replace or add
   Object.entries(dateOverrides).forEach(([dateISO, hours]) => {
     const slots = getTimeSlots(hours);
-    const ymd = convertToUtc(dateISO, "00:00", countryCode).scheduleDate;
+    const ymd = dateISO.replace(/-/g, "");
     const existingIndex = schedules.findIndex((s) => s.scheduleDate === ymd);
 
     if (existingIndex >= 0) {
       if (slots.length === 0) {
         schedules.splice(existingIndex, 1);
       } else {
-        const convertedSlots = slots.map((slot) => {
-          const startUtc = convertToUtc(dateISO, `${String(parseInt(slot.startTime)).padStart(2, "0")}:00`, countryCode);
-          const endUtc = convertToUtc(dateISO, `${String(parseInt(slot.endTime)).padStart(2, "0")}:00`, countryCode);
-          return {
-            startTime: startUtc.startTime,
-            endTime: endUtc.startTime,
-          };
-        });
         schedules[existingIndex] = {
           scheduleDate: ymd,
-          timeSlots: convertedSlots,
+          timeSlots: slots,
           action,
         };
       }
     } else if (slots.length > 0) {
-      const convertedSlots = slots.map((slot) => {
-        const startUtc = convertToUtc(dateISO, `${String(parseInt(slot.startTime)).padStart(2, "0")}:00`, countryCode);
-        const endUtc = convertToUtc(dateISO, `${String(parseInt(slot.endTime)).padStart(2, "0")}:00`, countryCode);
-        return {
-          startTime: startUtc.startTime,
-          endTime: endUtc.startTime,
-        };
-      });
-      schedules.push({ scheduleDate: ymd, timeSlots: convertedSlots, action });
+      schedules.push({ scheduleDate: ymd, timeSlots: slots, action });
     }
   });
 

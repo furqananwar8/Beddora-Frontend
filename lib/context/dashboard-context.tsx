@@ -4,7 +4,6 @@ import React, { createContext, useContext, useState, ReactNode } from "react";
 import {
   BackendSchedule,
   updateCampaignSchedule,
-  getCampaigns,
 } from "@/api/services/campaigns.api";
 import { toast } from "sonner";
 import {
@@ -22,7 +21,7 @@ export type Campaign = {
   marketplaces?: string[];
   creationDate?: string;
   countryCode?: string;
-  schedules?: any[];
+  schedules?: BackendSchedule[]; // ← make sure this is typed
   timezone: string;
   campaignId?: number;
 };
@@ -42,6 +41,8 @@ type CampaignSchedules = {
 };
 
 type DashboardContextType = {
+  campaigns: Campaign[];                    // ← stored in state
+  setCampaigns: (campaigns: Campaign[]) => void; // ← updater
   selectedCampaign: Campaign | null;
   setSelectedCampaign: (campaign: Campaign) => void;
   campaignSchedules: Record<string, CampaignSchedules>;
@@ -100,6 +101,9 @@ export function DashboardProvider({
   children: ReactNode;
   initialCampaigns: Campaign[];
 }) {
+  // ← Store campaigns in state so we can read schedules without re-fetching
+  const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
+  
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
     initialCampaigns[1] || initialCampaigns[0] || null,
   );
@@ -188,23 +192,18 @@ export function DashboardProvider({
     const campaignEntries = Object.entries(campaignSchedules);
     const savePromises = campaignEntries.map(
       async ([campaignId, campaignSchedule]) => {
-        const campaign =
-          initialCampaigns.find((c) => c.id === campaignId) ||
-          (selectedCampaign?.id === campaignId ? selectedCampaign : undefined);
+        const campaign = campaigns.find((c) => c.id === campaignId);
 
-        const campaignName = campaign?.name ?? campaignId;
+        if (!campaign) {
+          console.warn(`Campaign ${campaignId} not found in context`);
+          return null;
+        }
+
+        const campaignName = campaign.name;
         const campaignIdNum = Number(campaignId);
 
-        let existingSchedules: BackendSchedule[] | undefined = undefined;
-        try {
-          const resp = await getCampaigns({ page: 1, limit: 200 });
-          const found = resp.data.find(
-            (c) => c.campaignId === campaignIdNum,
-          );
-          existingSchedules = found?.schedules ?? [];
-        } catch (e) {
-          existingSchedules = undefined;
-        }
+        // ← Read existing schedules from context state instead of API call
+        const existingSchedules = campaign.schedules ?? [];
 
         const replacedDates = new Set<string>();
         Object.entries(campaignSchedule.weeks).forEach(
@@ -230,12 +229,10 @@ export function DashboardProvider({
           },
         );
 
-        const filteredExisting = existingSchedules
-          ? existingSchedules.filter((s) => {
-              const iso = backendDateToISO(s.scheduleDate ?? null);
-              return !iso || !replacedDates.has(iso);
-            })
-          : undefined;
+        const filteredExisting = existingSchedules.filter((s) => {
+          const iso = backendDateToISO(s.scheduleDate ?? null);
+          return !iso || !replacedDates.has(iso);
+        });
 
         const schedules = Object.entries(campaignSchedule.weeks).flatMap(
           ([weekStart, draft]) =>
@@ -246,14 +243,12 @@ export function DashboardProvider({
               campaignIdNum,
               weekStart,
               draft.action,
-              campaign?.countryCode || "US",
+              campaign.countryCode || "US",
             ),
         );
 
         if (schedules.length === 0) return null;
 
-        console.log("Scheduled data", {schedules})
-        // will call later first confirm accurate payload
         await updateCampaignSchedule(campaignIdNum, { schedules });
         return { campaignId, campaignName };
       },
@@ -275,6 +270,8 @@ export function DashboardProvider({
   return (
     <DashboardContext.Provider
       value={{
+        campaigns,
+        setCampaigns,
         selectedCampaign,
         setSelectedCampaign,
         campaignSchedules,

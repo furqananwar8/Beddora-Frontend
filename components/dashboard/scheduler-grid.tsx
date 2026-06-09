@@ -1,6 +1,5 @@
 "use client";
 
-import { SyncedCampaignsList } from "./scheduler/synced-campaigns-list";
 import { SchedulerHeader } from "./scheduler/scheduler-header";
 import { SchedulerGridHeader } from "./scheduler/scheduler-grid-header";
 import { WeeklySchedulerRow } from "./scheduler/weekly-scheduler-row";
