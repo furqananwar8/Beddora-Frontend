@@ -6,7 +6,7 @@ import { format } from "date-fns";
 
 type SchedulerPaginationProps = {
   mode: "WEEK" | "DATE";
-  weekStartDate: Date;
+  weekStartDate: string;
   activeSelectedDate: string;
   allScheduledDatesCount: number;
   previousScheduledWeekStart: string | null;

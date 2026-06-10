@@ -3,7 +3,6 @@
 import { cn } from "@/lib/utils";
 import { DayKey } from "@/lib/context/dashboard-context";
 import { formatDateISO } from "./scheduler-utils";
-import { addDays } from "date-fns";
 
 type WeeklySchedulerRowProps = {
   day: DayKey;
@@ -15,7 +14,7 @@ type WeeklySchedulerRowProps = {
   toggleWeeklyCell: (dIndex: number, hIndex: number) => void;
   campaignId: string;
   isPastHour: (dateISO: string, hourIndex: number) => boolean;
-  weekStartDate: Date;
+  weekStartDate: string;
 };
 
 export function WeeklySchedulerRow({
@@ -30,7 +29,8 @@ export function WeeklySchedulerRow({
   isPastHour,
   weekStartDate,
 }: WeeklySchedulerRowProps) {
-  const dateISO = formatDateISO(addDays(weekStartDate, dIndex));
+  // Pure string math — no Date objects, no timezone shifts
+  const dateISO = addDaysISO(weekStartDate, dIndex);
 
   return (
     <div
@@ -58,8 +58,8 @@ export function WeeklySchedulerRow({
           <div
             key={`${campaignId}-${dIndex}-${hIndex}`}
             onClick={() => !pastHour && toggleWeeklyCell(dIndex, hIndex)}
-            className={cn(
-              "h-17 border-r last:border-0 dark:border-zinc-800 transition-all duration-75",
+           className={cn(
+              "h-17 border-r last:border-0 dark:border-zinc-800",
               pastHour
                 ? "bg-zinc-200 dark:bg-zinc-700 cursor-not-allowed opacity-50"
                 : "cursor-pointer active:scale-95",
@@ -73,4 +73,15 @@ export function WeeklySchedulerRow({
       })}
     </div>
   );
+}
+
+// Pure ISO string date math — no Date objects, no timezone issues
+function addDaysISO(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  const yy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }

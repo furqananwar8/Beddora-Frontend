@@ -20,19 +20,12 @@ export const SCHEDULER_HOURS: string[] = Array.from({ length: 24 }, (_, i) =>
 // ALL SCHEDULER TIMES ARE PACIFIC TIME (PST/PDT)
 // No conversion. Grid = PST. Backend = PST.
 // ─────────────────────────────────────────────
-
 export function formatDateISO(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return date.toISOString().slice(0, 10);
 }
 
 export function formatYmd(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}${m}${d}`;
+  return date.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
 export function formatTime(date: Date): string {

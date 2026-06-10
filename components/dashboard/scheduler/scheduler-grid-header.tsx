@@ -24,7 +24,7 @@ type SchedulerGridHeaderProps = {
     schedule: boolean[],
   ) => void;
   campaignId: string;
-  weekStartDate: Date;
+  weekStartDate: string;
   isPastHour: (dateISO: string, hourIndex: number) => boolean;
 };
 
@@ -101,7 +101,7 @@ export function SchedulerGridHeader({
 
                 // Update week template - only toggle enabled hours
                 days.forEach((day, dIndex) => {
-                  const dateISO = formatDateISO(addDays(weekStartDate, dIndex));
+                  const dateISO = formatDateISO(addDays(weekStartDate as any, dIndex));
                   const isHourDisabled = isPastHour(dateISO, hIndex);
 
                   if (!isHourDisabled) {
@@ -111,12 +111,12 @@ export function SchedulerGridHeader({
                   }
                 });
 
-                const weekStart = formatDateISO(weekStartDate);
+                const weekStart = formatDateISO(weekStartDate as any);
                 setWeekTemplate(campaignId, weekStart, updated);
 
                 // Update only overridden dates
                 const affectedDates = days.map((day, di) => {
-                  const dateISO = formatDateISO(addDays(weekStartDate, di));
+                  const dateISO = formatDateISO(addDays(weekStartDate as any, di));
                   const isHourDisabled = isPastHour(dateISO, hIndex);
 
                   if (Object.hasOwn(dateOverrides, dateISO) && !isHourDisabled) {

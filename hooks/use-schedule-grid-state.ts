@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { addDays } from "date-fns";
 import type {
   WeekTemplate,
   DateOverrides,
@@ -43,7 +42,18 @@ interface UseScheduleGridStateOptions {
     weekStart: string,
     action: "ENABLED" | "PAUSED",
   ) => void;
-  weekStartDate: Date;
+  weekStartDate: string;
+}
+
+// ── Pure ISO string date math (no timezone issues) ──
+function addDaysISO(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  const yy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }
 
 export function useScheduleGridState({
@@ -105,28 +115,36 @@ export function useScheduleGridState({
     weekTemplate[selectedWeekKey] ?? createZeroSchedule();
   const activeDateSchedule = selectedOverride ?? inheritedSchedule;
 
-  const selectedDateLabel = new Date(
-    `${activeSelectedDate}T00:00:00`,
-  ).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  // Pure string-based date label — no Date objects, no timezone shifts
+  const selectedDateLabel = (() => {
+    const [y, m, d] = activeSelectedDate.split("-").map(Number);
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const weekdays = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    return `${weekdays[dow]} ${monthNames[m - 1]} ${d}`;
+  })();
 
-  const isPastHour = useCallback((dateISO: string, hourIndex: number) => {
+  function isPastHour(dateISO: string, hourIndex: number): boolean {
     const now = new Date();
-    const currentHour = now.getHours();
-    const dateToCheck = new Date(`${dateISO}T00:00:00`);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    dateToCheck.setHours(0, 0, 0, 0);
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Los_Angeles",
+      year: "numeric", month: "numeric", day: "numeric",
+      hour: "numeric", hourCycle: "h23",
+    }).formatToParts(now);
+    const get = (type: string) => Number(parts.find(p => p.type === type)?.value ?? 0);
 
-    if (dateToCheck < today) return true;
-    if (dateToCheck.getTime() === today.getTime()) {
-      return hourIndex < currentHour;
-    }
-    return false;
-  }, []);
+    const pstYear = get("year");
+    const pstMonth = get("month");
+    const pstDay = get("day");
+    const pstHour = get("hour"); // guaranteed 0–23
+
+    const [sy, sm, sd] = dateISO.split("-").map(Number);
+
+    const nowValue  = pstYear * 1000000 + pstMonth * 10000 + pstDay * 100 + pstHour;
+    const slotValue = sy      * 1000000 + sm       * 10000 + sd     * 100 + hourIndex;
+
+    return slotValue < nowValue;
+  }
 
   const clearWeeklyTemplate = useCallback(() => {
     if (!selectedCampaign) return;
@@ -135,7 +153,7 @@ export function useScheduleGridState({
     setWeekTemplate(selectedCampaign.id, activeWeekStart, emptyTemplate);
 
     SCHEDULER_DAYS.forEach((_: any, dayIndex: any) => {
-      const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
+      const dateISO = addDaysISO(weekStartDate, dayIndex);
       setDateOverride(
         selectedCampaign.id,
         activeWeekStart,
@@ -165,7 +183,7 @@ export function useScheduleGridState({
         [day]: nextDay,
       });
 
-      const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
+      const dateISO = addDaysISO(weekStartDate, dayIndex);
       if (Object.hasOwn(dateOverrides, dateISO)) {
         setDateOverride(
           selectedCampaign.id,
@@ -192,7 +210,7 @@ export function useScheduleGridState({
 
       const day = SCHEDULER_DAYS[dayIndex];
       const currentDay = weekTemplate[day] ?? createZeroSchedule();
-      const dateISO = formatDateISO(addDays(weekStartDate, dayIndex));
+      const dateISO = addDaysISO(weekStartDate, dayIndex);
 
       const enabledHours = Array.from(
         { length: 24 },
