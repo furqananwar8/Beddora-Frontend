@@ -85,6 +85,14 @@ export const getCampaigns = async ({ page = 1, limit = 20, state }: CampaignList
   return response.data;
 };
 
+export async function clearCampaignWeeklySchedule(campaignId: number) {
+  const response = await apiClient.post(
+    `/campaigns/${campaignId}/schedule`,
+    { schedules: [] },
+  );
+  return response.data;
+}
+
 export async function updateCampaignWeeklySchedule(
   campaignId: number,
   body: { schedules: WeeklySchedulePayload[] },

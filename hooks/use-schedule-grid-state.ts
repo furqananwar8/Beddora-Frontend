@@ -8,6 +8,7 @@ import {
   createZeroSchedule,
   buildWeeklyTemplateFromSchedules,
 } from "@/components/dashboard/scheduler/scheduler-utils";
+import { clearCampaignWeeklySchedule } from "@/api/services/campaigns.api"; // ← your API client
 
 interface UseScheduleGridStateOptions {
   selectedCampaign: any;
@@ -25,12 +26,9 @@ export function useScheduleGridState({
   setWeekTemplate,
 }: UseScheduleGridStateOptions) {
   const selectedCampaignKey = selectedCampaign?.id ?? "";
-
-  // Render-phase ref: always holds the latest campaignSchedules
   const schedulesRef = useRef(campaignSchedules);
   schedulesRef.current = campaignSchedules;
 
-  // Compute template fresh every time (no memo — context updates must reflect immediately)
   const getCurrentTemplate = (): WeekTemplate => {
     if (!selectedCampaignKey) return createEmptyWeekTemplate();
 
@@ -50,12 +48,22 @@ export function useScheduleGridState({
     return merged;
   };
 
-  // Call once per render to get fresh template for display
   const weekTemplate = getCurrentTemplate();
 
-  const clearWeeklyTemplate = useCallback(() => {
+  const clearWeeklyTemplate = useCallback(async () => {
     if (!selectedCampaign) return;
+
+    // 1. Clear local draft immediately
     setWeekTemplate(selectedCampaign.id, "default", createEmptyWeekTemplate());
+
+    // 2. Wipe backend schedules
+    const campaignIdNum = selectedCampaign.campaignId || Number(selectedCampaign.id);
+    try {
+      await clearCampaignWeeklySchedule(campaignIdNum);
+      console.log('[Clear] Backend schedules wiped');
+    } catch (e) {
+      console.error('[Clear] Failed to wipe backend:', e);
+    }
   }, [selectedCampaign, setWeekTemplate]);
 
   const toggleWeeklyCell = useCallback(
