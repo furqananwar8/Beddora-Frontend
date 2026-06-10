@@ -14,8 +14,7 @@ export function interceptors(api: AxiosInstance) {
   api.interceptors.response.use(
     (response) => response,
     async (error) => {
-      const errorCode = error?.response?.data?.errorCode;
-
+      const errorCode = error?.response?.data?.error;
       if (SESSION_ERRORS.includes(errorCode) && !isLoggingOut) {
         isLoggingOut = true;
 

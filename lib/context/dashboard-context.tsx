@@ -7,10 +7,7 @@ import {
 } from "@/api/services/campaigns.api";
 import { toast } from "sonner";
 import {
-  buildSchedulesFromState,
-  backendDateToISO,
-  formatDateISO,
-  SCHEDULER_DAYS,
+  buildSchedulesFromWeekTemplate,
 } from "@/components/dashboard/scheduler/scheduler-utils";
 
 export type Campaign = {
@@ -186,86 +183,56 @@ export function DashboardProvider({
     });
   };
 
+  // In dashboard-context.tsx, replace the handleSave logic:
+
   const handleSave = async () => {
-    if (Object.keys(campaignSchedules).length === 0) return;
+  if (Object.keys(campaignSchedules).length === 0) return;
 
-    const campaignEntries = Object.entries(campaignSchedules);
-    const savePromises = campaignEntries.map(
-      async ([campaignId, campaignSchedule]) => {
-        const campaign = campaigns.find((c) => c.id === campaignId);
+  const campaignEntries = Object.entries(campaignSchedules);
+  const savePromises = campaignEntries.map(
+    async ([campaignId, campaignSchedule]) => {
+      const campaign = campaigns.find((c) => c.id === campaignId);
 
-        if (!campaign) {
-          console.warn(`Campaign ${campaignId} not found in context`);
-          return null;
-        }
+      if (!campaign) {
+        console.warn(`Campaign ${campaignId} not found in context`);
+        return null;
+      }
 
-        const campaignName = campaign.name;
-        const campaignIdNum = Number(campaignId);
+      const campaignName = campaign.name;
+      const campaignIdNum = Number(campaignId);
 
-        // ← Read existing schedules from context state instead of API call
-        const existingSchedules = campaign.schedules ?? [];
+      // Get the latest week's draft
+      const weeks = (campaignSchedule as any).weeks ?? {};
+      const weekEntries = Object.entries(weeks);
+      if (weekEntries.length === 0) return null;
 
-        const replacedDates = new Set<string>();
-        Object.entries(campaignSchedule.weeks).forEach(
-          ([weekStart, draft]) => {
-            Object.keys(draft.dateOverrides || {}).forEach((d) =>
-              replacedDates.add(d),
-            );
+      const [, latestDraft] = weekEntries[weekEntries.length - 1] as [string, any];
 
-            const baseDate = new Date(`${weekStart}T00:00:00`);
-            SCHEDULER_DAYS.forEach((day: any, di: any) => {
-              const daySchedule = (draft.weekTemplate as any || {})[day] || [];
-              if (daySchedule.some(Boolean)) {
-                const iso = formatDateISO(
-                  new Date(
-                    baseDate.getFullYear(),
-                    baseDate.getMonth(),
-                    baseDate.getDate() + di,
-                  ),
-                );
-                replacedDates.add(iso);
-              }
-            });
-          },
-        );
+      const { buildSchedulesFromWeekTemplate } = require("@/components/dashboard/scheduler/scheduler-utils");
+      const schedules = buildSchedulesFromWeekTemplate(
+        latestDraft.weekTemplate ?? createEmptyWeekTemplate(),
+        latestDraft.action ?? "ENABLED",
+      );
 
-        const filteredExisting = existingSchedules.filter((s) => {
-          const iso = backendDateToISO(s.scheduleDate ?? null);
-          return !iso || !replacedDates.has(iso);
-        });
+      if (schedules.length === 0) return null;
+      console.log({schedules})
+      await updateCampaignSchedule(campaignIdNum, { schedules });
+      return { campaignId, campaignName };
+    },
+  );
 
-        const schedules = Object.entries(campaignSchedule.weeks).flatMap(
-          ([weekStart, draft]) =>
-            buildSchedulesFromState(
-              filteredExisting,
-              draft.weekTemplate,
-              draft.dateOverrides,
-              campaignIdNum,
-              weekStart,
-              draft.action,
-              campaign.countryCode || "US",
-            ),
-        );
-
-        if (schedules.length === 0) return null;
-
-        await updateCampaignSchedule(campaignIdNum, { schedules });
-        return { campaignId, campaignName };
-      },
-    );
-
-    try {
-      const results = await Promise.all(savePromises);
-      results.forEach((result) => {
-        if (result) {
-          toast.success(`Saved schedule for ${result.campaignName}!`);
-        }
-      });
-    } catch (error) {
-      console.error("handleSave error:", error);
-      toast.error("Failed to save one or more campaign schedules.");
-    }
-  };
+  try {
+    const results = await Promise.all(savePromises);
+    results.forEach((result) => {
+      if (result) {
+        toast.success(`Saved schedule for ${result.campaignName}!`);
+      }
+    });
+  } catch (error) {
+    console.error("handleSave error:", error);
+    toast.error("Failed to save one or more campaign schedules.");
+  }
+};
 
   return (
     <DashboardContext.Provider

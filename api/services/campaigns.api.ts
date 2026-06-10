@@ -63,6 +63,17 @@ export type UpdateCampaignSchedulePayload = {
   schedules: BackendSchedule[];
 };
 
+export interface TimeSlot {
+  startTime: string;
+  endTime: string;
+}
+
+export interface WeeklySchedulePayload {
+  dayOfWeek: number; // 0=Sun, 1=Mon, ..., 6=Sat
+  timeSlots: TimeSlot[];
+  action: "ENABLED" | "PAUSED";
+}
+
 export const getCampaigns = async ({ page = 1, limit = 20, state }: CampaignListParams): Promise<CampaignListResponse> => {
   const response = await apiClient.get("/campaigns", {
     params: {
@@ -73,6 +84,17 @@ export const getCampaigns = async ({ page = 1, limit = 20, state }: CampaignList
   });
   return response.data;
 };
+
+export async function updateCampaignWeeklySchedule(
+  campaignId: number,
+  body: { schedules: WeeklySchedulePayload[] },
+) {
+  const response = await apiClient.post(
+    `/campaigns/${campaignId}/weekly-schedule`,
+    body,
+  );
+  return response.data;
+}
 
 export const updateCampaignSchedule = async (
   campaignId: number,
