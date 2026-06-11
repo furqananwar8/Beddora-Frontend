@@ -10,7 +10,9 @@ interface UseCampaignsOptions {
 
 export function useCampaigns(options: UseCampaignsOptions) {
   const { type, cursor, limit = 15, search, state } = options;
-  console.log({options})
+
+  const isSearchActive = !!search && search.trim().length > 0;
+
   return useQuery({
     queryKey: ["campaigns", type, cursor, limit, search, state],
     queryFn: async () => {
@@ -24,12 +26,19 @@ export function useCampaigns(options: UseCampaignsOptions) {
 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/campaigns?${params.toString()}`,
-        { credentials: "include" }
+        { 
+          credentials: "include",
+          headers: { "Cache-Control": "no-cache" } 
+        }
       );
 
       if (!res.ok) throw new Error("Failed to fetch campaigns");
       return res.json();
     },
-    staleTime: 30 * 1000,
+    // Always fetch fresh data when searching; allow 30s cache for browsing
+    staleTime: isSearchActive ? 0 : 30 * 1000,
+    gcTime: isSearchActive ? 0 : 5 * 60 * 1000,
+    refetchOnMount: isSearchActive ? "always" : true,
+    refetchOnWindowFocus: isSearchActive ? "always" : true,
   });
 }
