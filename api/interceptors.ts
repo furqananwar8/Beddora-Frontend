@@ -14,21 +14,26 @@ export function interceptors(api: AxiosInstance) {
   api.interceptors.response.use(
     (response) => response,
     async (error) => {
+      const requestUrl = error?.config?.url;
       const errorCode = error?.response?.data?.error;
+
+      // Skip auth check endpoint — AuthCheck handles session state gracefully
+      if (requestUrl?.includes('/auth/me')) {
+        return Promise.reject(error);
+      }
+
       if (SESSION_ERRORS.includes(errorCode) && !isLoggingOut) {
         isLoggingOut = true;
 
-        // Call the Next.js API route to clear the HTTP-only cookie server-side
         try {
           await fetch('/api/auth/logout', {
             method: 'POST',
-            credentials: 'include', // ← include is safer for cross-subdomain
+            credentials: 'include',
           });
         } catch (e) {
           console.error('Logout API failed:', e);
         }
 
-        // Hard redirect to root (login page is now at /)
         if (typeof window !== 'undefined') {
           window.location.href = '/';
         }

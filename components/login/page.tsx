@@ -1,4 +1,5 @@
 "use client";
+
 import AmazonIcon from "@/components/icons/amazon";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -12,8 +13,8 @@ export default function LoginPage() {
   const handleLoginWithAmazon = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/amazon/login', {
-        credentials: 'include', // sends localhost cookie if present
+      const res = await fetch("/api/auth/amazon/login", {
+        credentials: "include",
       });
 
       if (!res.ok) {
@@ -21,8 +22,7 @@ export default function LoginPage() {
       }
 
       const { url } = await res.json();
-
-      window.location.href = url; // navigate to Amazon
+      window.location.href = url;
     } catch (err) {
       toast.error("Failed to start login. Please try again.");
     } finally {
@@ -35,12 +35,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-8 rounded-2xl bg-white dark:bg-zinc-900 p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
         <div className="text-center space-y-2">
           <div className="flex flex-col items-center">
-            <Image
-              src="/beddora-logo.svg"
-              alt="Beddora"
-              width={300}
-              height={300}
-            />
+            <Image src="/beddora-logo.svg" alt="Beddora" width={300} height={300} />
             <p>Campaign Managment Tool</p>
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
