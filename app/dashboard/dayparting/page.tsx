@@ -7,7 +7,8 @@ import { useUser } from "@/hooks/useUser";
 
 export default function DaypartingPage() {
   const { selectedCampaign } = useDashboard();
-  const { data: user, isLoading, isPending, error } = useUser();
+  const { data: user } = useUser();
+  const canInvite = user?.invitedBy === 'system';
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Title & Actions */}
@@ -28,7 +29,8 @@ export default function DaypartingPage() {
             Select the specific hours of the day you want your campaign to run.
           </p>
         </div>
-        <InviteUserModal />
+
+         {canInvite && <InviteUserModal />}
       </div>
 
       {/* Grid */}
