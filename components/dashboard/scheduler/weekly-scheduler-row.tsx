@@ -11,6 +11,7 @@ type WeeklySchedulerRowProps = {
   toggleFullDay: (dIndex: number) => void;
   toggleWeeklyCell: (dIndex: number, hIndex: number) => void;
   campaignId: string;
+  disabled?: boolean;
 };
 
 export function WeeklySchedulerRow({

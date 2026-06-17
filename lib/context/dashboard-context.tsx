@@ -43,6 +43,8 @@ type DashboardContextType = {
   selectedCampaign: Campaign | null;
   setSelectedCampaign: (campaign: Campaign) => void;
   campaignSchedules: Record<string, CampaignSchedules>;
+  isSaving: boolean;
+  setIsSaving: (value: boolean) => void;
   setWeekTemplate: (
     campaignId: string,
     weekStart: string,
@@ -100,6 +102,7 @@ export function DashboardProvider({
 }) {
   // ← Store campaigns in state so we can read schedules without re-fetching
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
     initialCampaigns[1] || initialCampaigns[0] || null,
@@ -247,6 +250,8 @@ export function DashboardProvider({
         setWeekAction,
         deleteDateOverride,
         handleSave,
+        isSaving,
+        setIsSaving,
       }}
     >
       {children}

@@ -6,12 +6,9 @@ import {
   Loader2,
   Settings,
   Zap,
-  HelpCircle,
-  Bell,
   Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DashboardProvider,
   useDashboard,
@@ -28,7 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CampaignCard } from "@/components/campaign-card/campaign-card";
 import { CampaignSidebar } from "@/components/campaign-sidebar/campaign-sidebar";
 
 const navigation = [
@@ -41,8 +37,19 @@ const navigation = [
 ];
 
 function DashboardLayoutContent({ children }: { children: ReactNode }) {
-  const { selectedCampaign, handleSave } = useDashboard();
+  const { selectedCampaign, handleSave, isSaving, setIsSaving  } = useDashboard();
   const [executingModalOpen, setExecutingModalOpen] = useState(false);
+
+  const onSave = async () => {
+    setIsSaving(true);
+    try {
+      await handleSave();
+    } catch (err) {
+      toast.error("Failed to save schedule. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] dark:bg-zinc-950">
@@ -78,22 +85,30 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* Campaign Sidebar — Extracted Component */}
+      {/* Campaign Sidebar */}
       <CampaignSidebar />
 
       {/* Main Content */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col relative">
         {/* View Content */}
-        <main className="flex-1 overflow-auto bg-[#F8FAFC] dark:bg-zinc-950 p-8">
+        <main className={`flex-1 overflow-auto bg-[#F8FAFC] dark:bg-zinc-950 p-8 ${isSaving ? 'pointer-events-none' : ''}`}>
           {children}
         </main>
       </div>
 
       {/* Floating Action Button (Save) */}
-      <div className="fixed bottom-8 right-8">
-        <Button className="bg-indigo-600 text-white" onClick={handleSave}>
-          <Save className="h-4 w-4 mr-2" />
-          Save
+      <div className="fixed bottom-8 right-8 z-50">
+        <Button 
+          className="bg-indigo-600 text-white disabled:opacity-70 disabled:cursor-not-allowed" 
+          onClick={onSave}
+          disabled={isSaving}
+        >
+          {isSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Save className="h-4 w-4 mr-2" />
+          )}
+          {isSaving ? "Saving..." : "Save"}
         </Button>
       </div>
 
@@ -115,7 +130,6 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
 }
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  // Fetch initial campaigns for context (optional — sidebar fetches its own)
   const campaignsQuery = useCampaigns({
     type: "SPONSORED_PRODUCTS",
     limit: 15,

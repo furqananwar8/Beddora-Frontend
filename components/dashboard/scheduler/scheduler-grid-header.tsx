@@ -3,11 +3,12 @@
 import { useRef } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 import { DayKey, WeekTemplate } from "@/lib/context/dashboard-context";
 
 type SchedulerGridHeaderProps = {
-  clearWeeklyTemplate: () => void;
+  clearWeeklyTemplate: () => Promise<void>;
+  isClearing: boolean;
   hours: string[];
   days: DayKey[];
   weekTemplate: WeekTemplate;
@@ -17,6 +18,7 @@ type SchedulerGridHeaderProps = {
 
 export function SchedulerGridHeader({
   clearWeeklyTemplate,
+  isClearing,
   hours,
   days,
   weekTemplate,
@@ -36,9 +38,18 @@ export function SchedulerGridHeader({
         </div>
         <div className="col-span-24 relative flex items-center justify-between p-2 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
           <span>Hours (00 - 23)</span>
-          <Button variant="destructive" size="sm" onClick={clearWeeklyTemplate}>
-            <X className="h-4 w-4 mr-1" />
-            Clear All
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={clearWeeklyTemplate}
+            disabled={isClearing}
+          >
+            {isClearing ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1" />
+            ) : (
+              <X className="h-4 w-4 mr-1" />
+            )}
+            {isClearing ? "Clearing..." : "Clear All"}
           </Button>
         </div>
       </div>
@@ -66,6 +77,7 @@ export function SchedulerGridHeader({
           );
 
           const handleToggleAllWeek = () => {
+            if (isClearing) return;
             const current = templateRef.current;
             const updated: WeekTemplate = { ...current };
 
@@ -87,6 +99,7 @@ export function SchedulerGridHeader({
                 size="sm"
                 checked={isAllWeekActive}
                 onCheckedChange={handleToggleAllWeek}
+                disabled={isClearing}
                 className="scale-90 cursor-pointer"
               />
             </div>
