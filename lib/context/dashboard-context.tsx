@@ -189,53 +189,66 @@ export function DashboardProvider({
   // In dashboard-context.tsx, replace the handleSave logic:
 
   const handleSave = async () => {
-  if (Object.keys(campaignSchedules).length === 0) return;
+    // Don't block if no campaigns have schedules — we still need to clear selected ones
+    const campaignEntries = Object.entries(campaignSchedules);
+    
+    // If nothing in campaignSchedules, check if we have a selectedCampaign to clear
+    if (campaignEntries.length === 0) {
+      if (!selectedCampaign) return; // truly nothing to do
+      
+      // Send empty array to clear selected campaign
+      await updateCampaignSchedule(Number(selectedCampaign.id), { schedules: [] });
+      toast.success(`Cleared schedule for ${selectedCampaign.name}!`);
+      return;
+    }
 
-  const campaignEntries = Object.entries(campaignSchedules);
-  const savePromises = campaignEntries.map(
-    async ([campaignId, campaignSchedule]) => {
-      const campaign = campaigns.find((c) => c.id === campaignId);
+    const savePromises = campaignEntries.map(
+      async ([campaignId, campaignSchedule]) => {
+        const campaign = campaigns.find((c) => c.id === campaignId);
 
-      if (!campaign) {
-        console.warn(`Campaign ${campaignId} not found in context`);
-        return null;
-      }
+        if (!campaign) {
+          return null;
+        }
 
-      const campaignName = campaign.name;
-      const campaignIdNum = Number(campaignId);
+        const campaignName = campaign.name;
+        const campaignIdNum = Number(campaignId);
 
-      // Get the latest week's draft
-      const weeks = (campaignSchedule as any).weeks ?? {};
-      const weekEntries = Object.entries(weeks);
-      if (weekEntries.length === 0) return null;
+        const weeks = (campaignSchedule as any).weeks ?? {};
+        const weekEntries = Object.entries(weeks);
+        if (weekEntries.length === 0) {
+          // No week data — send empty to clear
+          await updateCampaignSchedule(campaignIdNum, { schedules: [] });
+          return { campaignId, campaignName, cleared: true };
+        }
 
-      const [, latestDraft] = weekEntries[weekEntries.length - 1] as [string, any];
+        const [, latestDraft] = weekEntries[weekEntries.length - 1] as [string, any];
 
-      const { buildSchedulesFromWeekTemplate } = require("@/components/dashboard/scheduler/scheduler-utils");
-      const schedules = buildSchedulesFromWeekTemplate(
-        latestDraft.weekTemplate ?? createEmptyWeekTemplate(),
-        latestDraft.action ?? "ENABLED",
-      );
+        const { buildSchedulesFromWeekTemplate } = require("@/components/dashboard/scheduler/scheduler-utils");
+        const schedules = buildSchedulesFromWeekTemplate(
+          latestDraft.weekTemplate ?? createEmptyWeekTemplate(),
+          latestDraft.action ?? "ENABLED",
+        );
 
-      if (schedules.length === 0) return null;
-      console.log({schedules})
-      await updateCampaignSchedule(campaignIdNum, { schedules });
-      return { campaignId, campaignName };
-    },
-  );
+        // ALWAYS send to API — empty array clears, non-empty saves
+        await updateCampaignSchedule(campaignIdNum, { schedules });
+        return { campaignId, campaignName, cleared: schedules.length === 0 };
+      },
+    );
 
-  try {
-    const results = await Promise.all(savePromises);
-    results.forEach((result) => {
-      if (result) {
-        toast.success(`Saved schedule for ${result.campaignName}!`);
-      }
-    });
-  } catch (error) {
-    console.error("handleSave error:", error);
-    toast.error("Failed to save one or more campaign schedules.");
-  }
-};
+    try {
+      const results = await Promise.all(savePromises);
+      results.forEach((result) => {
+        if (!result) return;
+        if (result.cleared) {
+          toast.success(`Cleared schedule for ${result.campaignName}!`);
+        } else {
+          toast.success(`Saved schedule for ${result.campaignName}!`);
+        }
+      });
+    } catch (error) {
+      toast.error("Failed to save one or more campaign schedules.");
+    }
+  };
 
   return (
     <DashboardContext.Provider
