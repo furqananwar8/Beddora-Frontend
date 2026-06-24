@@ -11,6 +11,8 @@ import { SearchCampaigns } from "@/components/search-campaign/search-campaign";
 import { Button } from "@/components/ui/button";
 import { getTimezoneFromCountry } from "@/utils/getTimeZoneFromCountry";
 
+import { usePathname, useRouter } from "next/navigation";
+
 type CampaignType = "SPONSORED_PRODUCTS" | "SPONSORED_BRANDS" | "SPONSORED_DISPLAY";
 
 const TABS: { key: CampaignType; label: string }[] = [
@@ -31,6 +33,10 @@ export function CampaignSidebar() {
   const { selectedCampaign, setSelectedCampaign, setCampaigns } = useDashboard();
 
   const currentCursor = cursorHistory[currentIndex];
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const isScheduledPage = pathname === "/dashboard/scheduled" || pathname.startsWith("/dashboard/scheduled");
 
   const campaignsQuery = useCampaigns({
     type: activeTab,
@@ -160,8 +166,8 @@ export function CampaignSidebar() {
               }}
               isSelected={selectedCampaign?.id === campaign.campaignId.toString()}
               isOperating={false}
-              onClick={() =>
-               setSelectedCampaign({
+              onClick={() => {
+                setSelectedCampaign({
                   id: campaign.campaignId.toString(),
                   name: campaign.name,
                   status: campaign.state.toUpperCase(),
@@ -173,6 +179,12 @@ export function CampaignSidebar() {
                   campaignId: campaign.campaignId,
                   timezone: getTimezoneFromCountry(campaign.countryCode),
                 })
+        
+                if (isScheduledPage) {
+                  router.push("/dashboard/dayparting");
+                }
+
+              }
               }
             />
           ))}

@@ -1,12 +1,15 @@
 "use client";
 
 import { ReactNode, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Calendar,
   Loader2,
   Settings,
   Zap,
   Save,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -32,13 +35,23 @@ const navigation = [
     name: "Dayparting",
     icon: Calendar,
     href: "/dashboard/dayparting",
-    current: true,
+    current: false,
+  },
+  {
+    name: "Scheduled Campaigns",
+    icon: Clock,
+    href: "/dashboard/scheduled",
+    current: false,
   },
 ];
 
 function DashboardLayoutContent({ children }: { children: ReactNode }) {
   const { selectedCampaign, handleSave, isSaving, setIsSaving  } = useDashboard();
   const [executingModalOpen, setExecutingModalOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const isScheduledPage = pathname === "/dashboard/scheduled" || pathname.startsWith("/dashboard/scheduled");
 
   const onSave = async () => {
     setIsSaving(true);
@@ -60,8 +73,8 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
         </div>
         <nav className="flex flex-1 flex-col items-center space-y-4">
           {navigation.map((item) => (
-            <a
-              key={item.name}
+             <Link
+               key={item.name}
               href={item.href}
               className={cn(
                 "group relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
@@ -74,7 +87,7 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
               <span className="absolute left-14 hidden rounded-md bg-zinc-900 px-2 py-1 text-xs text-white group-hover:block">
                 {item.name}
               </span>
-            </a>
+            </Link>
           ))}
         </nav>
         <div className="mt-auto flex flex-col items-center space-y-4">
@@ -97,20 +110,22 @@ function DashboardLayoutContent({ children }: { children: ReactNode }) {
       </div>
 
       {/* Floating Action Button (Save) */}
-      <div className="fixed bottom-8 right-8 z-50">
-        <Button 
-          className="bg-indigo-600 text-white disabled:opacity-70 disabled:cursor-not-allowed" 
-          onClick={onSave}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : (
-            <Save className="h-4 w-4 mr-2" />
-          )}
-          {isSaving ? "Saving..." : "Save"}
-        </Button>
-      </div>
+       {!isScheduledPage && (
+        <div className="fixed bottom-8 right-8 z-50">
+          <Button 
+            className="bg-indigo-600 text-white disabled:opacity-70 disabled:cursor-not-allowed" 
+            onClick={onSave}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      )}
 
       <Dialog open={executingModalOpen} onOpenChange={setExecutingModalOpen}>
         <DialogContent>
