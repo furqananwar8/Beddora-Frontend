@@ -217,15 +217,7 @@ export function DashboardProvider({
     const campaignEntries = Object.entries(campaignSchedules);
     
     if (campaignEntries.length === 0) {
-      if (!selectedCampaign) return;
-      await updateCampaignSchedule(Number(selectedCampaign.id), { schedules: [] });
-      
-      // Update local campaigns state so derived selectedCampaign gets fresh data
-      setCampaigns(prev => prev.map(c => 
-        c.id === selectedCampaign.id ? { ...c, schedules: [] } : c
-      ));
-      
-      toast.success(`Cleared schedule for ${selectedCampaign.name}!`);
+      toast.info("No changes to save");
       return;
     }
 
