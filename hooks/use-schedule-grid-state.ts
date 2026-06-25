@@ -62,7 +62,6 @@ export function useScheduleGridState({
     const campaignIdNum = selectedCampaign.campaignId || Number(selectedCampaign.id);
     try {
       await clearCampaignWeeklySchedule(campaignIdNum);
-      console.log('[Clear] Backend schedules wiped');
     } catch (e) {
       console.error('[Clear] Failed to wipe backend:', e);
     }

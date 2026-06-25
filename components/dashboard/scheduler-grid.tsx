@@ -49,7 +49,6 @@ export function SchedulerGrid() {
   };
 
   const isLoading = isSaving || isClearing;
-  console.log({weekTemplate})
   return (
     <div className="space-y-6 relative">
       <SyncCampaignsDialog

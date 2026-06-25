@@ -69,7 +69,6 @@ const FormField = memo(({ field: config }: { field: FormFieldTypes }) => {
                 } else {
                   if (config.name === "address.postalCode") {
                     const value = e.target.value.replace(/\s+/g, "");
-                    console.log("postal code", value);
                     field.onChange(value);
                   }
                   else{
