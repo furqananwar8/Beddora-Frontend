@@ -64,8 +64,6 @@ export function useSchedulerGrid() {
     // 4. WIPE DRAFT ENTRY entirely so getCurrentTemplate() can't merge stale data
     clearCampaignDraft(activeCampaign.id);
 
-    // 5. Deselect to force unmount
-    clearSelectedCampaign();
   }, [activeCampaign, setWeekTemplate, setCampaigns, clearCampaignDraft, clearSelectedCampaign]);
 
   return {
