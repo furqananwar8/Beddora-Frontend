@@ -12,9 +12,8 @@ export default function DaypartingPage() {
   const { data: user } = useUser();
   const canInvite = user?.invitedBy === 'system';
   const queryClient = useQueryClient();
-
-
-    useEffect(() => {
+  
+  useEffect(() => {
     if (selectedCampaign?.id) {
       // Remove cached schedule data for this campaign
       queryClient.removeQueries({ queryKey: ["campaign-schedules", selectedCampaign.id] });

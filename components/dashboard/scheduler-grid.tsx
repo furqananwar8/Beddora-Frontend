@@ -23,8 +23,7 @@ export function SchedulerGrid() {
     syncCompleted,
     weekTemplate,
     clearWeeklyTemplate,
-    isLoadingFresh, // add this
-    isGridReady,    // add this
+    // isLoadingFresh, // add this
     toggleWeeklyCell,
     toggleFullDay,
     setWeekTemplate,
@@ -32,13 +31,13 @@ export function SchedulerGrid() {
 
   if (!selectedCampaign) return null;
 
-  if (!selectedCampaign || isLoadingFresh) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-      </div>
-    );
-  }
+  // if (!selectedCampaign || isLoadingFresh) {
+  //   return (
+  //     <div className="flex items-center justify-center h-64">
+  //       <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+  //     </div>
+  //   );
+  // }
 
   const handleClear = async () => {
     setIsClearing(true);

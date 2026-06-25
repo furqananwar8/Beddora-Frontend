@@ -239,11 +239,11 @@ export function DashboardProvider({
       const weekEntries = Object.entries(weeks);
 
       if (weekEntries.length === 0) {
-        await updateCampaignSchedule(campaignIdNum, { schedules: [] });
+        await updateCampaignSchedule(campaignIdNum, { schedules: [], campaignName  });
         
         // Update local state
         setCampaigns(prev => prev.map(c => 
-          String(c.id) === campaignId ? { ...c, schedules: [] } : c
+          String(c.id) === campaignId ? { ...c, schedules: []  } : c
         ));
         
         return { campaignId, campaignName, cleared: true };
@@ -256,12 +256,12 @@ export function DashboardProvider({
         latestDraft.action ?? "ENABLED",
       );
 
-      await updateCampaignSchedule(campaignIdNum, { schedules });
+      await updateCampaignSchedule(campaignIdNum, { schedules, campaignName });
       
       // CRITICAL: Update local campaigns array with new schedules
       setCampaigns(prev => prev.map(c => 
         String(c.id) === campaignId || String(c.campaignId) === campaignId
-          ? { ...c, schedules }
+          ? { ...c, schedules  }
           : c
       ));
       

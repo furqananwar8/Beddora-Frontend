@@ -142,7 +142,7 @@ export default function ScheduledCampaignsPage() {
             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
           >
             <Trash2 className="h-4 w-4" />
-            Delete All Future
+            Delete All Future Scheduled Jobs
           </button>
         </div>
       </div>
@@ -152,15 +152,15 @@ export default function ScheduledCampaignsPage() {
         <table className="w-full text-sm whitespace-nowrap min-w-[1100px]">
           <thead>
             <tr className="bg-zinc-50 border-b border-zinc-200">
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700">Job ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700">Campaign ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700">Type</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700">Action</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700">Execute Date (PDT)</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700">Execute Time (PDT)</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700">Slot</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700">Status</th>
-              <th className="px-4 py-3 text-left font-semibold text-zinc-700">Created At</th>
+              {/* <th className="px-4 py-3 text-center font-semibold text-zinc-700">Job ID</th> */}
+              <th className="px-4 py-3 text-center font-semibold text-zinc-700">Campaign ID</th>
+              <th className="px-4 py-3 text-center font-semibold text-zinc-700">Type</th>
+              <th className="px-4 py-3 text-center font-semibold text-zinc-700">Action</th>
+              <th className="px-4 py-3 text-center font-semibold text-zinc-700">Execute Date (PDT)</th>
+              <th className="px-4 py-3 text-center font-semibold text-zinc-700">Execute Time (PDT)</th>
+              <th className="px-4 py-3 text-center font-semibold text-zinc-700">Slot</th>
+              <th className="px-4 py-3 text-center font-semibold text-zinc-700">Status</th>
+              <th className="px-4 py-3 text-center font-semibold text-zinc-700">Created At</th>
             </tr>
           </thead>
           <tbody>
@@ -181,27 +181,27 @@ export default function ScheduledCampaignsPage() {
                 
                 return (
                   <tr key={job.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                    <td className="px-4 py-3 font-mono text-xs">{job.id}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-zinc-500"> {job.campaignName || `Campaign ${job.campaignId}`}</td>
-                    <td className="px-4 py-3">
+                    {/* <td className="px-4 py-3 text-center font-mono text-xs">{job.id}</td> */}
+                    <td className="px-4 py-3 text-center font-mono text-xs text-zinc-500"> {job.campaignName || `Campaign ${job.campaignId}`}</td>
+                    <td className="px-4 py-3 text-center">
                       <span className="px-2 py-1 rounded-full text-xs font-medium border border-zinc-200 capitalize">
                         {job.jobType.replace("_", " ")}
                       </span>
                     </td>
-                    <td className={`px-4 py-3 font-medium ${job.action === "ENABLE" ? "text-green-600" : "text-amber-600"}`}>
+                    <td className={`px-4 py-3 text-center font-medium ${job.action === "ENABLE" ? "text-green-600" : "text-amber-600"}`}>
                       {job.action}
                     </td>
-                    <td className="px-4 py-3 font-medium">{executeAtPDT}</td>
-                    <td className="px-4 py-3">{executeTimePDT}</td>
-                    <td className="px-4 py-3 text-zinc-500 text-xs">
+                    <td className="px-4 py-3 text-center font-medium">{executeAtPDT}</td>
+                    <td className="px-4 py-3 text-center">{executeTimePDT}</td>
+                    <td className="px-4 py-3 text-center text-zinc-500 text-xs">
                       {slot ? `${slot.startTime} - ${slot.endTime}` : "—"}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[job.status] || "bg-gray-100 text-gray-800"}`}>
                         {job.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-zinc-500 text-xs">
+                    <td className="px-4 py-3 text-center text-zinc-500 text-xs">
                       {job.createdAt
                         ? formatInTimeZone(new Date(job.createdAt), TARGET_TZ, "MMM dd, yyyy HH:mm")
                         : "N/A"}

@@ -55,8 +55,8 @@ export function useSchedulerGrid() {
     await clearCampaignWeeklySchedule(id);
 
     // 3. UPDATE CONTEXT CAMPAIGNS ARRAY — this was missing
-    setCampaigns((prev) =>
-      prev.map((c) =>
+    setCampaigns(
+      campaigns.map((c) =>
         c.id === activeCampaign.id ? { ...c, schedules: [] } : c
       )
     );

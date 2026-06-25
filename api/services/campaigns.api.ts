@@ -61,6 +61,7 @@ export type CampaignListParams = {
 
 export type UpdateCampaignSchedulePayload = {
   schedules: BackendSchedule[];
+  campaignName?: string;
 };
 
 export interface TimeSlot {
@@ -108,6 +109,7 @@ export const updateCampaignSchedule = async (
   campaignId: number,
   payload: UpdateCampaignSchedulePayload,
 ) => {
+  console.log({payload})
   const response = await apiClient.post(
     `/campaigns/${campaignId}/schedule`,
     payload,
