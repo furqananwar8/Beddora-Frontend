@@ -45,6 +45,8 @@ export function CampaignSidebar() {
     search: search || undefined,
   });
 
+  const isRefetching = campaignsQuery.isRefetching || campaignsQuery.isLoading;
+
   const campaigns = campaignsQuery.data?.data || [];
   const meta = campaignsQuery.data?.meta;
   const isLoading = campaignsQuery.isLoading;
@@ -132,8 +134,14 @@ export function CampaignSidebar() {
         ))}
       </div>
 
+      {isRefetching && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60">
+          <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
+        </div>
+      )}
+
       {/* Campaign List */}
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className={`flex-1 min-h-0 ${isRefetching ? 'pointer-events-none opacity-50' : ''}`}>
         <div className="space-y-1 p-2">
           {isLoading && (
             <div className="flex items-center justify-center py-12">

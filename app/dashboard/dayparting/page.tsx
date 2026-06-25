@@ -4,11 +4,28 @@ import { SchedulerGrid } from "@/components/dashboard/scheduler-grid";
 import { InviteUserModal } from "@/components/dashboard/invite-user-modal";
 import { useDashboard } from "@/lib/context/dashboard-context";
 import { useUser } from "@/hooks/useUser";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 export default function DaypartingPage() {
   const { selectedCampaign } = useDashboard();
   const { data: user } = useUser();
   const canInvite = user?.invitedBy === 'system';
+  const queryClient = useQueryClient();
+
+
+    useEffect(() => {
+    if (selectedCampaign?.id) {
+      // Remove cached schedule data for this campaign
+      queryClient.removeQueries({ queryKey: ["campaign-schedules", selectedCampaign.id] });
+      
+      // Refetch the campaign data to get fresh schedules
+      queryClient.refetchQueries({ 
+        queryKey: ["campaigns"],
+        type: 'active'
+      });
+    }
+  }, [selectedCampaign?.id, queryClient]);
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Title & Actions */}
@@ -34,7 +51,9 @@ export default function DaypartingPage() {
       </div>
 
       {/* Grid */}
-      <SchedulerGrid />
+      <SchedulerGrid 
+         key={`${selectedCampaign?.campaignId || selectedCampaign?.id}-${selectedCampaign?.creationDate || 'empty'}`} 
+      />
     </div>
   );
 }

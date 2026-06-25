@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import type { WeekTemplate } from "@/lib/context/dashboard-context";
 import {
   SCHEDULER_DAYS,
@@ -8,7 +8,7 @@ import {
   createZeroSchedule,
   buildWeeklyTemplateFromSchedules,
 } from "@/components/dashboard/scheduler/scheduler-utils";
-import { clearCampaignWeeklySchedule } from "@/api/services/campaigns.api"; // ← your API client
+import { clearCampaignWeeklySchedule } from "@/api/services/campaigns.api";
 
 interface UseScheduleGridStateOptions {
   selectedCampaign: any;
@@ -25,18 +25,19 @@ export function useScheduleGridState({
   campaignSchedules,
   setWeekTemplate,
 }: UseScheduleGridStateOptions) {
+  
   const selectedCampaignKey = selectedCampaign?.id ?? "";
-  const schedulesRef = useRef(campaignSchedules);
-  schedulesRef.current = campaignSchedules;
 
+  // Build template fresh every time — selectedCampaign now always has latest schedules
   const getCurrentTemplate = (): WeekTemplate => {
     if (!selectedCampaignKey) return createEmptyWeekTemplate();
 
+    // Always use fresh schedules from selectedCampaign (derived from campaigns array in context)
     const backend = selectedCampaign?.schedules
       ? buildWeeklyTemplateFromSchedules(selectedCampaign.schedules)
       : createEmptyWeekTemplate();
 
-    const draft = schedulesRef.current?.[selectedCampaignKey]?.weeks?.["default"];
+    const draft = campaignSchedules?.[selectedCampaignKey]?.weeks?.["default"];
     if (!draft?.weekTemplate) return backend;
 
     const merged: WeekTemplate = { ...backend };
@@ -48,15 +49,16 @@ export function useScheduleGridState({
     return merged;
   };
 
+  // Get template for rendering
   const weekTemplate = getCurrentTemplate();
 
   const clearWeeklyTemplate = useCallback(async () => {
     if (!selectedCampaign) return;
 
-    // 1. Clear local draft immediately
+    // Clear local draft immediately
     setWeekTemplate(selectedCampaign.id, "default", createEmptyWeekTemplate());
 
-    // 2. Wipe backend schedules
+    // Wipe backend schedules
     const campaignIdNum = selectedCampaign.campaignId || Number(selectedCampaign.id);
     try {
       await clearCampaignWeeklySchedule(campaignIdNum);
@@ -71,6 +73,7 @@ export function useScheduleGridState({
       if (!selectedCampaign) return;
 
       const day = SCHEDULER_DAYS[dayIndex];
+      // Call getCurrentTemplate fresh to get latest state
       const currentTemplate = getCurrentTemplate();
       const currentDay = currentTemplate[day] ?? createZeroSchedule();
       const nextDay = [...currentDay];
@@ -81,7 +84,7 @@ export function useScheduleGridState({
         [day]: nextDay,
       });
     },
-    [selectedCampaign, setWeekTemplate],
+    [selectedCampaign, setWeekTemplate], // getCurrentTemplate uses selectedCampaign which is always fresh
   );
 
   const toggleFullDay = useCallback(
@@ -89,6 +92,7 @@ export function useScheduleGridState({
       if (!selectedCampaign) return;
 
       const day = SCHEDULER_DAYS[dayIndex];
+      // Call getCurrentTemplate fresh to get latest state
       const currentTemplate = getCurrentTemplate();
       const currentDay = currentTemplate[day] ?? createZeroSchedule();
       const isAllActive = currentDay.every(Boolean);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from "react";
 import {
   BackendSchedule,
   updateCampaignSchedule,
@@ -45,6 +45,7 @@ type DashboardContextType = {
   campaignSchedules: Record<string, CampaignSchedules>;
   isSaving: boolean;
   setIsSaving: (value: boolean) => void;
+  clearSelectedCampaign: () => void;
   setWeekTemplate: (
     campaignId: string,
     weekStart: string,
@@ -67,6 +68,7 @@ type DashboardContextType = {
     date: string,
   ) => void;
   handleSave: () => void;
+  clearCampaignDraft: (campaignId: string) => void;
 };
 
 const DashboardContext = createContext<DashboardContextType | undefined>(
@@ -104,12 +106,35 @@ export function DashboardProvider({
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
   const [isSaving, setIsSaving] = useState(false);
   
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
-    initialCampaigns[1] || initialCampaigns[0] || null,
-  );
+
+
+  // const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(
+  //   initialCampaigns[1] || initialCampaigns[0] || null,
+  // );
+
+  // const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [campaignSchedules, setCampaignSchedules] = useState<
     Record<string, CampaignSchedules>
   >({});
+
+ 
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+
+  // Derive selectedCampaign from campaigns list — always fresh data
+  const selectedCampaign = useMemo(() => {
+  if (!selectedCampaignId || !campaigns) return null;
+  return campaigns.find(
+    (c:any) => c.campaignId === selectedCampaignId || String(c.id) === selectedCampaignId
+  ) || null;
+}, [selectedCampaignId, campaigns]);
+
+  const setSelectedCampaign = useCallback((campaign: Campaign | null) => {
+    setSelectedCampaignId(campaign?.id || null);
+  }, []);
+
+  const clearSelectedCampaign = useCallback(() => {
+    setSelectedCampaign(null);
+  }, []);
 
   const updateLocalCampaignSchedule = (
     campaignId: string,
@@ -189,51 +214,68 @@ export function DashboardProvider({
   // In dashboard-context.tsx, replace the handleSave logic:
 
   const handleSave = async () => {
-    // Don't block if no campaigns have schedules — we still need to clear selected ones
     const campaignEntries = Object.entries(campaignSchedules);
     
-    // If nothing in campaignSchedules, check if we have a selectedCampaign to clear
     if (campaignEntries.length === 0) {
-      if (!selectedCampaign) return; // truly nothing to do
-      
-      // Send empty array to clear selected campaign
+      if (!selectedCampaign) return;
       await updateCampaignSchedule(Number(selectedCampaign.id), { schedules: [] });
+      
+      // Update local campaigns state so derived selectedCampaign gets fresh data
+      setCampaigns(prev => prev.map(c => 
+        c.id === selectedCampaign.id ? { ...c, schedules: [] } : c
+      ));
+      
       toast.success(`Cleared schedule for ${selectedCampaign.name}!`);
       return;
     }
 
-    const savePromises = campaignEntries.map(
-      async ([campaignId, campaignSchedule]) => {
-        const campaign = campaigns.find((c) => c.id === campaignId);
+    const savePromises = campaignEntries.map(async ([campaignId, campaignSchedule]) => {
+      const campaign = campaigns.find((c) => c.id === campaignId);
+      if (!campaign) return null;
 
-        if (!campaign) {
-          return null;
-        }
+      const campaignName = campaign.name;
+      const campaignIdNum = Number(campaignId);
+      const weeks = (campaignSchedule as any).weeks ?? {};
+      const weekEntries = Object.entries(weeks);
 
-        const campaignName = campaign.name;
-        const campaignIdNum = Number(campaignId);
+      if (weekEntries.length === 0) {
+        await updateCampaignSchedule(campaignIdNum, { schedules: [] });
+        
+        // Update local state
+        setCampaigns(prev => prev.map(c => 
+          String(c.id) === campaignId ? { ...c, schedules: [] } : c
+        ));
+        
+        return { campaignId, campaignName, cleared: true };
+      }
 
-        const weeks = (campaignSchedule as any).weeks ?? {};
-        const weekEntries = Object.entries(weeks);
-        if (weekEntries.length === 0) {
-          // No week data — send empty to clear
-          await updateCampaignSchedule(campaignIdNum, { schedules: [] });
-          return { campaignId, campaignName, cleared: true };
-        }
+      const [, latestDraft] = weekEntries[weekEntries.length - 1] as [string, any];
+      const { buildSchedulesFromWeekTemplate } = require("@/components/dashboard/scheduler/scheduler-utils");
+      const schedules = buildSchedulesFromWeekTemplate(
+        latestDraft.weekTemplate ?? createEmptyWeekTemplate(),
+        latestDraft.action ?? "ENABLED",
+      );
 
-        const [, latestDraft] = weekEntries[weekEntries.length - 1] as [string, any];
+      await updateCampaignSchedule(campaignIdNum, { schedules });
+      
+      // CRITICAL: Update local campaigns array with new schedules
+      setCampaigns(prev => prev.map(c => 
+        String(c.id) === campaignId || String(c.campaignId) === campaignId
+          ? { ...c, schedules }
+          : c
+      ));
+      
+      // CRITICAL: Clear the draft so it doesn't override fresh data on next visit
+      setCampaignSchedules(prev => {
+        const next = { ...prev };
+        delete next[campaignId];
+        return next;
+      });
 
-        const { buildSchedulesFromWeekTemplate } = require("@/components/dashboard/scheduler/scheduler-utils");
-        const schedules = buildSchedulesFromWeekTemplate(
-          latestDraft.weekTemplate ?? createEmptyWeekTemplate(),
-          latestDraft.action ?? "ENABLED",
-        );
+      
 
-        // ALWAYS send to API — empty array clears, non-empty saves
-        await updateCampaignSchedule(campaignIdNum, { schedules });
-        return { campaignId, campaignName, cleared: schedules.length === 0 };
-      },
-    );
+      return { campaignId, campaignName, cleared: schedules.length === 0 };
+    });
 
     try {
       const results = await Promise.all(savePromises);
@@ -250,6 +292,14 @@ export function DashboardProvider({
     }
   };
 
+  const clearCampaignDraft = useCallback((campaignId: string) => {
+    setCampaignSchedules(prev => {
+      const next = { ...prev };
+      delete next[campaignId];
+      return next;
+    });
+  }, []);
+
   return (
     <DashboardContext.Provider
       value={{
@@ -265,6 +315,8 @@ export function DashboardProvider({
         handleSave,
         isSaving,
         setIsSaving,
+        clearSelectedCampaign,
+        clearCampaignDraft
       }}
     >
       {children}

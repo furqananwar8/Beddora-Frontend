@@ -25,7 +25,7 @@ export function WeeklySchedulerRow({
 }: WeeklySchedulerRowProps) {
   const allActive = hours.every((_, hIndex) => isActiveHour(day, hIndex));
   const someActive = hours.some((_, hIndex) => isActiveHour(day, hIndex));
-
+  console.log({allActive, someActive})
   return (
     <div className="grid grid-cols-[80px_repeat(24,1fr)] border-b last:border-b-0 dark:border-zinc-800">
       <div className="flex items-center justify-center border-r p-2 dark:border-zinc-800">

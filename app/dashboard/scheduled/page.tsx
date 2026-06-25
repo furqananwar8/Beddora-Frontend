@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { formatInTimeZone } from "date-fns-tz";
 import { useScheduledJobs } from "@/hooks/use-scheduled-jobs";
 import { useQueryClient } from "@tanstack/react-query";
+import { useDashboard } from "@/lib/context/dashboard-context";
 
 const TARGET_TZ = "America/Los_Angeles";
 
@@ -30,7 +31,7 @@ export default function ScheduledCampaignsPage() {
   
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  
+  const { clearSelectedCampaign } = useDashboard();
   const { data, isLoading, error, refetch } = useScheduledJobs({
     page,
     limit,
@@ -53,6 +54,7 @@ export default function ScheduledCampaignsPage() {
     
     // // Remove all campaign queries from cache and force refetch
     // Invalidate ALL campaign-related queries
+    clearSelectedCampaign();
     queryClient.removeQueries({ queryKey: ["campaigns"] });
     queryClient.removeQueries({ queryKey: ["campaign-schedules"] });
     

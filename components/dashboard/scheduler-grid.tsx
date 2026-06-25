@@ -23,12 +23,22 @@ export function SchedulerGrid() {
     syncCompleted,
     weekTemplate,
     clearWeeklyTemplate,
+    isLoadingFresh, // add this
+    isGridReady,    // add this
     toggleWeeklyCell,
     toggleFullDay,
     setWeekTemplate,
   } = useSchedulerGrid();
 
   if (!selectedCampaign) return null;
+
+  if (!selectedCampaign || isLoadingFresh) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
   const handleClear = async () => {
     setIsClearing(true);
@@ -40,7 +50,7 @@ export function SchedulerGrid() {
   };
 
   const isLoading = isSaving || isClearing;
-
+  console.log({weekTemplate})
   return (
     <div className="space-y-6 relative">
       <SyncCampaignsDialog
