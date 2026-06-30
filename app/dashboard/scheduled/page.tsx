@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
-import { Loader2, Trash2, AlertCircle, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Trash2, AlertCircle, Filter, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatInTimeZone } from "date-fns-tz";
 import { useScheduledJobs } from "@/hooks/use-scheduled-jobs";
@@ -33,20 +33,30 @@ export default function ScheduledCampaignsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  
+
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = 20;
   const status = searchParams.get("status") || undefined;
-  
+  const search = searchParams.get("search") || "";
+
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchInput, setSearchInput] = useState(search);
   const { clearSelectedCampaign } = useDashboard();
+
+  // Sync local input with URL when user navigates back/forward
+  useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
+
+  // Pass search to hook — API debounce is handled inside useScheduledJobs
   const { data, isLoading, error, refetch } = useScheduledJobs({
     page,
     limit,
     status,
+    search,
   });
-  
+
   const handleDeleteAll = async () => {
     setIsDeleting(true);
     try {
@@ -57,16 +67,16 @@ export default function ScheduledCampaignsPage() {
       });
 
       if (!res.ok) throw new Error("Failed to delete jobs");
-      
+
       const result = await res.json();
       toast.success(result.message);
-      
+
       clearSelectedCampaign();
       queryClient.removeQueries({ queryKey: ["campaigns"] });
       queryClient.removeQueries({ queryKey: ["campaign-schedules"] });
-      
+
       await queryClient.refetchQueries({ queryKey: ["campaigns"], type: 'active' });
-      
+
       refetch();
     } catch (err) {
       toast.error("Failed to delete scheduled jobs");
@@ -75,13 +85,13 @@ export default function ScheduledCampaignsPage() {
       setShowDeleteDialog(false);
     }
   };
-  
+
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams);
     params.set("page", String(newPage));
     router.push(`/dashboard/scheduled?${params.toString()}`);
   };
-  
+
   const handleStatusFilter = (value: string) => {
     const params = new URLSearchParams(searchParams);
     if (value === "all") {
@@ -92,7 +102,28 @@ export default function ScheduledCampaignsPage() {
     params.set("page", "1");
     router.push(`/dashboard/scheduled?${params.toString()}`);
   };
-  
+
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    const trimmed = value.trim();
+    const params = new URLSearchParams(searchParams);
+    if (trimmed) {
+      params.set("search", trimmed);
+    } else {
+      params.delete("search");
+    }
+    params.set("page", "1");
+    router.push(`/dashboard/scheduled?${params.toString()}`);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput("");
+    const params = new URLSearchParams(searchParams);
+    params.delete("search");
+    params.set("page", "1");
+    router.push(`/dashboard/scheduled?${params.toString()}`);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -100,7 +131,7 @@ export default function ScheduledCampaignsPage() {
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -108,10 +139,10 @@ export default function ScheduledCampaignsPage() {
       </div>
     );
   }
-  
+
   const jobs = data?.data || [];
   const meta = data?.meta;
-  
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -122,8 +153,28 @@ export default function ScheduledCampaignsPage() {
             All scheduled jobs across campaigns
           </p>
         </div>
-        
+
         <div className="flex items-center gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+            <input
+              type="text"
+              placeholder="Search by campaign name..."
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-9 pr-9 py-2 w-64 border border-zinc-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            {searchInput && (
+              <button
+                onClick={handleClearSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-zinc-100"
+              >
+                <X className="h-3.5 w-3.5 text-zinc-400" />
+              </button>
+            )}
+          </div>
+
           {/* Status Filter */}
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
@@ -140,7 +191,7 @@ export default function ScheduledCampaignsPage() {
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
-          
+
           {/* Delete Button */}
           <button
             onClick={() => setShowDeleteDialog(true)}
@@ -152,7 +203,7 @@ export default function ScheduledCampaignsPage() {
           </button>
         </div>
       </div>
-      
+
       {/* Table with horizontal scroll */}
       <div className="rounded-lg border border-zinc-200 bg-white shadow-sm overflow-x-auto">
         <table className="w-full text-sm whitespace-nowrap min-w-[1100px]">
@@ -171,8 +222,8 @@ export default function ScheduledCampaignsPage() {
           <tbody>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={9} className="text-center py-12 text-zinc-500">
-                  No scheduled jobs found
+                <td colSpan={8} className="text-center py-12 text-zinc-500">
+                  {search ? "No scheduled jobs match your search" : "No scheduled jobs found"}
                 </td>
               </tr>
             ) : (
@@ -181,9 +232,9 @@ export default function ScheduledCampaignsPage() {
                   ? formatInTimeZone(new Date(job.executeAt), TARGET_TZ, "yyyy-MM-dd")
                   : "N/A";
                 const executeTimePDT = job.executeAt ? formatInTimeZone(new Date(job.executeAt), TARGET_TZ, "hh:mm a") : "N/A";
-                
+
                 const slot = job.schedule?.timeSlots?.[0];
-                
+
                 return (
                   <tr key={job.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                     <td className="px-4 py-3 text-center font-mono text-xs text-zinc-500"> {job.campaignName || `Campaign ${job.campaignId}`}</td>
@@ -217,7 +268,7 @@ export default function ScheduledCampaignsPage() {
           </tbody>
         </table>
       </div>
-      
+
       {/* Pagination */}
       {meta && meta.totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
@@ -291,11 +342,11 @@ export default function ScheduledCampaignsPage() {
           </button>
         </div>
       )}
-      
+
       <div className="text-sm text-zinc-500 text-right">
         Showing {jobs.length} of {meta?.total || 0} jobs
       </div>
-      
+
       {/* Delete Confirmation Dialog */}
       {showDeleteDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
