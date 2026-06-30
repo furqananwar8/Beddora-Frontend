@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useDashboard } from "@/lib/context/dashboard-context";
 
 const TARGET_TZ = "America/Los_Angeles";
+const MAX_VISIBLE = 10;
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -19,6 +20,14 @@ const statusColors: Record<string, string> = {
   failed: "bg-red-100 text-red-800",
   cancelled: "bg-gray-100 text-gray-800",
 };
+
+function getPageWindow(current: number, total: number, size: number) {
+  if (total <= size) return { start: 1, end: total };
+  const block = Math.ceil(current / size);
+  const start = (block - 1) * size + 1;
+  const end = Math.min(block * size, total);
+  return { start, end };
+}
 
 export default function ScheduledCampaignsPage() {
   const router = useRouter();
@@ -39,27 +48,24 @@ export default function ScheduledCampaignsPage() {
   });
   
   const handleDeleteAll = async () => {
-  setIsDeleting(true);
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/campaigns/scheduled-jobs`, {
-      method: "DELETE",
-      credentials: "include",
-      headers: { "Cache-Control": "no-cache" }
-    });
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/campaigns/scheduled-jobs`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Cache-Control": "no-cache" }
+      });
 
-    if (!res.ok) throw new Error("Failed to delete jobs");
-    
-    const result = await res.json();
-    toast.success(result.message);
-    
-    // // Remove all campaign queries from cache and force refetch
-    // Invalidate ALL campaign-related queries
-    clearSelectedCampaign();
-    queryClient.removeQueries({ queryKey: ["campaigns"] });
-    queryClient.removeQueries({ queryKey: ["campaign-schedules"] });
-    
-    // Force refetch
-    await queryClient.refetchQueries({ queryKey: ["campaigns"], type: 'active' });
+      if (!res.ok) throw new Error("Failed to delete jobs");
+      
+      const result = await res.json();
+      toast.success(result.message);
+      
+      clearSelectedCampaign();
+      queryClient.removeQueries({ queryKey: ["campaigns"] });
+      queryClient.removeQueries({ queryKey: ["campaign-schedules"] });
+      
+      await queryClient.refetchQueries({ queryKey: ["campaigns"], type: 'active' });
       
       refetch();
     } catch (err) {
@@ -152,7 +158,6 @@ export default function ScheduledCampaignsPage() {
         <table className="w-full text-sm whitespace-nowrap min-w-[1100px]">
           <thead>
             <tr className="bg-zinc-50 border-b border-zinc-200">
-              {/* <th className="px-4 py-3 text-center font-semibold text-zinc-700">Job ID</th> */}
               <th className="px-4 py-3 text-center font-semibold text-zinc-700">Campaign ID</th>
               <th className="px-4 py-3 text-center font-semibold text-zinc-700">Type</th>
               <th className="px-4 py-3 text-center font-semibold text-zinc-700">Action</th>
@@ -181,7 +186,6 @@ export default function ScheduledCampaignsPage() {
                 
                 return (
                   <tr key={job.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                    {/* <td className="px-4 py-3 text-center font-mono text-xs">{job.id}</td> */}
                     <td className="px-4 py-3 text-center font-mono text-xs text-zinc-500"> {job.campaignName || `Campaign ${job.campaignId}`}</td>
                     <td className="px-4 py-3 text-center">
                       <span className="px-2 py-1 rounded-full text-xs font-medium border border-zinc-200 capitalize">
@@ -224,21 +228,60 @@ export default function ScheduledCampaignsPage() {
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          
-          {Array.from({ length: meta.totalPages }, (_, i) => i + 1).map((p) => (
-            <button
-              key={p}
-              onClick={() => handlePageChange(p)}
-              className={`w-8 h-8 rounded-lg text-sm font-medium ${
-                p === page
-                  ? "bg-indigo-600 text-white"
-                  : "border border-zinc-200 hover:bg-zinc-50 text-zinc-700"
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-          
+
+          {(() => {
+            const { start, end } = getPageWindow(page, meta.totalPages, MAX_VISIBLE);
+            return (
+              <>
+                {start > 1 && (
+                  <>
+                    <button
+                      onClick={() => handlePageChange(1)}
+                      className="w-8 h-8 rounded-lg text-sm font-medium border border-zinc-200 hover:bg-zinc-50 text-zinc-700"
+                    >
+                      1
+                    </button>
+                    {start > 2 && (
+                      <span className="w-8 h-8 flex items-center justify-center text-zinc-400 text-sm">
+                        ...
+                      </span>
+                    )}
+                  </>
+                )}
+
+                {Array.from({ length: end - start + 1 }, (_, i) => start + i).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => handlePageChange(p)}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium ${
+                      p === page
+                        ? "bg-indigo-600 text-white"
+                        : "border border-zinc-200 hover:bg-zinc-50 text-zinc-700"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+
+                {end < meta.totalPages && (
+                  <>
+                    {end < meta.totalPages - 1 && (
+                      <span className="w-8 h-8 flex items-center justify-center text-zinc-400 text-sm">
+                        ...
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handlePageChange(meta.totalPages)}
+                      className="w-8 h-8 rounded-lg text-sm font-medium border border-zinc-200 hover:bg-zinc-50 text-zinc-700"
+                    >
+                      {meta.totalPages}
+                    </button>
+                  </>
+                )}
+              </>
+            );
+          })()}
+
           <button
             onClick={() => handlePageChange(page + 1)}
             disabled={!meta.hasNext}
