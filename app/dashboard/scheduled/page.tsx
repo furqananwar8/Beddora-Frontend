@@ -21,6 +21,21 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-gray-100 text-gray-800",
 };
 
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    if (value === "") {
+      setDebouncedValue(value); // instant clear, no delay
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 function getPageWindow(current: number, total: number, size: number) {
   if (total <= size) return { start: 1, end: total };
   const block = Math.ceil(current / size);
@@ -44,12 +59,28 @@ export default function ScheduledCampaignsPage() {
   const [searchInput, setSearchInput] = useState(search);
   const { clearSelectedCampaign } = useDashboard();
 
+  const debouncedSearchInput = useDebounce(searchInput, 500);
+
   // Sync local input with URL when user navigates back/forward
   useEffect(() => {
     setSearchInput(search);
   }, [search]);
 
-  // Pass search to hook — API debounce is handled inside useScheduledJobs
+  // Push debounced search to URL (resets page to 1)
+  useEffect(() => {
+    if (debouncedSearchInput === search) return;
+
+    const params = new URLSearchParams(searchParams);
+    const trimmed = debouncedSearchInput.trim();
+    if (trimmed) {
+      params.set("search", trimmed);
+    } else {
+      params.delete("search");
+    }
+    params.set("page", "1");
+    router.push(`/dashboard/scheduled?${params.toString()}`);
+  }, [debouncedSearchInput, search, searchParams, router]);
+
   const { data, isLoading, error, refetch } = useScheduledJobs({
     page,
     limit,
@@ -58,33 +89,37 @@ export default function ScheduledCampaignsPage() {
   });
 
   const handleDeleteAll = async () => {
-    setIsDeleting(true);
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/campaigns/scheduled-jobs`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: { "Cache-Control": "no-cache" }
-      });
+  setIsDeleting(true);
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/campaigns/scheduled-jobs`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "Cache-Control": "no-cache" }
+    });
 
-      if (!res.ok) throw new Error("Failed to delete jobs");
+    if (!res.ok) throw new Error("Failed to delete jobs");
 
-      const result = await res.json();
-      toast.success(result.message);
+    const result = await res.json();
+    toast.success(result.message);
 
-      clearSelectedCampaign();
-      queryClient.removeQueries({ queryKey: ["campaigns"] });
-      queryClient.removeQueries({ queryKey: ["campaign-schedules"] });
+    clearSelectedCampaign();
 
-      await queryClient.refetchQueries({ queryKey: ["campaigns"], type: 'active' });
+    // Remove cached queries for related data
+    queryClient.removeQueries({ queryKey: ["campaigns"] });
+    queryClient.removeQueries({ queryKey: ["campaign-schedules"] });
+    // CRITICAL: also purge the scheduled-jobs cache so the table refreshes
+    queryClient.removeQueries({ queryKey: ["scheduled-jobs"] });
 
-      refetch();
-    } catch (err) {
-      toast.error("Failed to delete scheduled jobs");
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteDialog(false);
-    }
-  };
+    // Refetch active queries
+    await queryClient.refetchQueries({ queryKey: ["campaigns"], type: "active" });
+    await refetch();
+  } catch (err) {
+    toast.error("Failed to delete scheduled jobs");
+  } finally {
+    setIsDeleting(false);
+    setShowDeleteDialog(false);
+  }
+};
 
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams);
@@ -105,23 +140,10 @@ export default function ScheduledCampaignsPage() {
 
   const handleSearchChange = (value: string) => {
     setSearchInput(value);
-    const trimmed = value.trim();
-    const params = new URLSearchParams(searchParams);
-    if (trimmed) {
-      params.set("search", trimmed);
-    } else {
-      params.delete("search");
-    }
-    params.set("page", "1");
-    router.push(`/dashboard/scheduled?${params.toString()}`);
   };
 
   const handleClearSearch = () => {
     setSearchInput("");
-    const params = new URLSearchParams(searchParams);
-    params.delete("search");
-    params.set("page", "1");
-    router.push(`/dashboard/scheduled?${params.toString()}`);
   };
 
   if (isLoading) {
@@ -274,7 +296,7 @@ export default function ScheduledCampaignsPage() {
         <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => handlePageChange(page - 1)}
-            disabled={!meta.hasPrev}
+            disabled={page <= 1}
             className="p-2 rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -335,7 +357,7 @@ export default function ScheduledCampaignsPage() {
 
           <button
             onClick={() => handlePageChange(page + 1)}
-            disabled={!meta.hasNext}
+            disabled={page >= meta.totalPages}
             className="p-2 rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronRight className="h-4 w-4" />
