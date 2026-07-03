@@ -81,7 +81,14 @@ export default function ScheduledCampaignsPage() {
     router.push(`/dashboard/scheduled?${params.toString()}`);
   }, [debouncedSearchInput, search, searchParams, router]);
 
-  const { data, isLoading, error, refetch } = useScheduledJobs({
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    error,
+    refetch,
+  } = useScheduledJobs({
     page,
     limit,
     status,
@@ -89,39 +96,42 @@ export default function ScheduledCampaignsPage() {
   });
 
   const handleDeleteAll = async () => {
-  setIsDeleting(true);
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/campaigns/scheduled-jobs`, {
-      method: "DELETE",
-      credentials: "include",
-      headers: { "Cache-Control": "no-cache" }
-    });
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/campaigns/scheduled-jobs`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Cache-Control": "no-cache" },
+      });
 
-    if (!res.ok) throw new Error("Failed to delete jobs");
+      if (!res.ok) throw new Error("Failed to delete jobs");
 
-    const result = await res.json();
-    toast.success(result.message);
+      const result = await res.json();
+      toast.success(result.message);
 
-    clearSelectedCampaign();
+      clearSelectedCampaign();
 
-    // Remove cached queries for related data
-    queryClient.removeQueries({ queryKey: ["campaigns"] });
-    queryClient.removeQueries({ queryKey: ["campaign-schedules"] });
-    // CRITICAL: also purge the scheduled-jobs cache so the table refreshes
-    queryClient.removeQueries({ queryKey: ["scheduled-jobs"] });
+      // Remove cached queries for related data
+      queryClient.removeQueries({ queryKey: ["campaigns"] });
+      queryClient.removeQueries({ queryKey: ["campaign-schedules"] });
+      // CRITICAL: also purge the scheduled-jobs cache so the table refreshes
+      queryClient.removeQueries({ queryKey: ["scheduled-jobs"] });
 
-    // Refetch active queries
-    await queryClient.refetchQueries({ queryKey: ["campaigns"], type: "active" });
-    await refetch();
-  } catch (err) {
-    toast.error("Failed to delete scheduled jobs");
-  } finally {
-    setIsDeleting(false);
-    setShowDeleteDialog(false);
-  }
-};
+      // Refetch active queries
+      await queryClient.refetchQueries({ queryKey: ["campaigns"], type: "active" });
+      await refetch();
+    } catch (err) {
+      toast.error("Failed to delete scheduled jobs");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
 
   const handlePageChange = (newPage: number) => {
+    // Guard against double-clicks / clicks while the previous page is
+    // still in flight landing on stale pagination math.
+    if (isFetching) return;
     const params = new URLSearchParams(searchParams);
     params.set("page", String(newPage));
     router.push(`/dashboard/scheduled?${params.toString()}`);
@@ -146,7 +156,14 @@ export default function ScheduledCampaignsPage() {
     setSearchInput("");
   };
 
-  if (isLoading) {
+  // Only show the full-page blocking spinner on the very first load,
+  // when we have no data at all to show yet. On every subsequent
+  // fetch (page change, filter change, search), `data` is kept around
+  // via placeholderData in the hook, so we dim the existing table
+  // instead of unmounting it. This is what was freezing pagination
+  // clicks on larger result sets: the buttons themselves were being
+  // removed from the DOM mid-fetch.
+  if (isLoading && !data) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
@@ -164,6 +181,7 @@ export default function ScheduledCampaignsPage() {
 
   const jobs = data?.data || [];
   const meta = data?.meta;
+  const isRefetching = isFetching || isPlaceholderData;
 
   return (
     <div className="space-y-6 p-6">
@@ -227,7 +245,11 @@ export default function ScheduledCampaignsPage() {
       </div>
 
       {/* Table with horizontal scroll */}
-      <div className="rounded-lg border border-zinc-200 bg-white shadow-sm overflow-x-auto">
+      <div
+        className={`rounded-lg border border-zinc-200 bg-white shadow-sm overflow-x-auto transition-opacity ${
+          isRefetching ? "opacity-60" : "opacity-100"
+        }`}
+      >
         <table className="w-full text-sm whitespace-nowrap min-w-[1100px]">
           <thead>
             <tr className="bg-zinc-50 border-b border-zinc-200">
@@ -293,10 +315,10 @@ export default function ScheduledCampaignsPage() {
 
       {/* Pagination */}
       {meta && meta.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
+        <div className={`flex items-center justify-center gap-2 transition-opacity ${isRefetching ? "opacity-60" : "opacity-100"}`}>
           <button
             onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1}
+            disabled={page <= 1 || isFetching}
             className="p-2 rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -310,7 +332,8 @@ export default function ScheduledCampaignsPage() {
                   <>
                     <button
                       onClick={() => handlePageChange(1)}
-                      className="w-8 h-8 rounded-lg text-sm font-medium border border-zinc-200 hover:bg-zinc-50 text-zinc-700"
+                      disabled={isFetching}
+                      className="w-8 h-8 rounded-lg text-sm font-medium border border-zinc-200 hover:bg-zinc-50 text-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       1
                     </button>
@@ -326,10 +349,11 @@ export default function ScheduledCampaignsPage() {
                   <button
                     key={p}
                     onClick={() => handlePageChange(p)}
-                    className={`w-8 h-8 rounded-lg text-sm font-medium ${
+                    disabled={isFetching}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium disabled:cursor-not-allowed ${
                       p === page
                         ? "bg-indigo-600 text-white"
-                        : "border border-zinc-200 hover:bg-zinc-50 text-zinc-700"
+                        : "border border-zinc-200 hover:bg-zinc-50 text-zinc-700 disabled:opacity-50"
                     }`}
                   >
                     {p}
@@ -345,7 +369,8 @@ export default function ScheduledCampaignsPage() {
                     )}
                     <button
                       onClick={() => handlePageChange(meta.totalPages)}
-                      className="w-8 h-8 rounded-lg text-sm font-medium border border-zinc-200 hover:bg-zinc-50 text-zinc-700"
+                      disabled={isFetching}
+                      className="w-8 h-8 rounded-lg text-sm font-medium border border-zinc-200 hover:bg-zinc-50 text-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {meta.totalPages}
                     </button>
@@ -357,7 +382,7 @@ export default function ScheduledCampaignsPage() {
 
           <button
             onClick={() => handlePageChange(page + 1)}
-            disabled={page >= meta.totalPages}
+            disabled={page >= meta.totalPages || isFetching}
             className="p-2 rounded-lg border border-zinc-200 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronRight className="h-4 w-4" />
